@@ -35,12 +35,16 @@ while [ $i -lt 40 ]; do
   i=$((i + 1)); sleep 0.1
 done
 
-# Any visitor loaded with -l is warned about when it lacks a lexical-binding
-# cookie (those came from my own probes once — hence this check). If you see
-# this, add "; -*- lexical-binding: t; -*-" as the first line of the file.
+# Refuse, do not warn. A file loaded with -l that lacks a lexical-binding cookie
+# makes Emacs print "Warning (files): Missing 'lexical-binding' cookie", which
+# means the run has output that is not the configuration's — and a run whose
+# output you have to explain cannot be trusted. Warning and continuing is the
+# same bug as a checker that greps for "ok" and ignores everything else.
 for f in "$@"; do
-  [ "$(head -1 "$f")" = ";; -*- lexical-binding: t; -*-" ] || \
-    printf 'note: %s has no lexical-binding cookie\n' "$f" >&2
+  if [ "$(head -1 "$f")" = ";; -*- lexical-binding: t; -*-" ]; then continue; fi
+  printf 'refusing to run: %s has no lexical-binding cookie\n' "$f" >&2
+  printf 'add this as its first line:\n  ;; -*- lexical-binding: t; -*-\n' >&2
+  exit 4
 done
 
 args=""

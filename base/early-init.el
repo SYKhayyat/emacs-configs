@@ -35,6 +35,5 @@
 (setq inhibit-startup-screen t
       inhibit-startup-message t
       inhibit-startup-buffer-menu t
-      inhibit-startup-echo-area-message user-login-name
       initial-scratch-message nil
       frame-inhibit-implied-resize t)
