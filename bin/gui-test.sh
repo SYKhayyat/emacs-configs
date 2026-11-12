@@ -35,6 +35,14 @@ while [ $i -lt 40 ]; do
   i=$((i + 1)); sleep 0.1
 done
 
+# Any visitor loaded with -l is warned about when it lacks a lexical-binding
+# cookie (those came from my own probes once — hence this check). If you see
+# this, add "; -*- lexical-binding: t; -*-" as the first line of the file.
+for f in "$@"; do
+  [ "$(head -1 "$f")" = ";; -*- lexical-binding: t; -*-" ] || \
+    printf 'note: %s has no lexical-binding cookie\n' "$f" >&2
+done
+
 args=""
 for f in "$@"; do args="$args -l $f"; done
 

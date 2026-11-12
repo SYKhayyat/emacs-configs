@@ -98,8 +98,10 @@ packages, savehist/recentf — all deferred pending decisions.
   system offers (here JetBrainsMono from fontconfig). Hebrew fonts belong to
   the Hebrew profile.
 - **`save-interprogram-paste-before-kill` is startup-free but not cost-free:**
-  it reads the clipboard on every kill, and a stuck clipboard owner is a known
-  freeze vector on X11/Wayland. Revisit if kills ever feel slow.
+  on an X11 display it reads the selection from whoever owns it, and a stuck
+  owner is a known freeze vector. On Wayland (this machine) the compositor
+  serves the clipboard, so that vector does not exist — the setting stays on
+  unconditionally. Revisit only if a kill ever feels slow.
 - **`my/maybe-lighten-large-buffer` is currently dead code**: it hangs off
   `find-file-hook`, but nothing enables line numbers yet. It becomes real in
   stage 4, or it gets deleted.
