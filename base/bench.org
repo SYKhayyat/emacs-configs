@@ -1,0 +1,54 @@
+#+TITLE: bench — measurement, not configuration
+#+PROPERTY: header-args:emacs-lisp :tangle ./bench.el
+#+PROPERTY: header-args+: :results none
+
+* Why this is a separate file
+
+Measuring startup is how everything else in this repository gets approved, so
+the measuring code has to exist — but it is not configuration, and the editor
+should not carry it around. This file is loaded /only/ when =MY_BENCH= is set
+(=bin/bench.sh= does that); every other launch pays one =getenv= and nothing
+else.
+
+Two things are recorded:
+
+- =my/marks= — labelled points, as milliseconds since this Emacs process
+  started. Because the first mark is taken in =early-init=, the table separates
+  *Emacs's own startup* from *what this repository costs*.
+- =my/load-times= — how long each module took to load.
+
+* Priced
+
+Loading this file, only in a benchmark run: ~0.1 ms. The instrumentation it
+adds is two =push= operations per milestone and a =float-time= call per module.
+
+#+begin_src emacs-lisp
+;; -*- lexical-binding: t; -*-
+(defvar my/marks nil
+  "Milestones as (label . milliseconds-since-process-start).")
+
+(defvar my/load-times nil
+  "Modules loaded, as (filename . milliseconds).")
+
+(defun my/mark (label)
+  "Record LABEL with the milliseconds elapsed since this process started."
+  (push (cons label (* 1000 (float-time (time-subtract
+                                         (current-time) before-init-time))))
+        my/marks))
+
+(defun my/report ()
+  "Print the price table: phases, modules, and the total."
+  (princ (format "\n  %-34s %7s\n" "phase" "ms"))
+  (dolist (row (reverse my/marks))
+    (princ (format "  %-34s %7.1f\n" (car row) (cdr row))))
+  (dolist (row (reverse my/load-times))
+    (princ (format "    loaded %-25s %7.1f\n" (car row) (cdr row))))
+  (when (fboundp 'my/start-idle-modes)
+    (let ((t0 (float-time)))
+      (my/start-idle-modes)
+      (princ (format "    idle modes (so-long+delsel+which-key)%5.1f\n"
+                     (* 1000 (- (float-time) t0))))))
+  (princ (format "  %-34s %7.1f\n" "TOTAL (process start → here)"
+                 (* 1000 (float-time (time-subtract (current-time)
+                                                    before-init-time))))))
+#+end_src

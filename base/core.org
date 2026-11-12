@@ -1,0 +1,181 @@
+#+TITLE: core — settings that apply to every profile
+#+PROPERTY: header-args:emacs-lisp :tangle ./core.el
+#+PROPERTY: header-args+: :results none
+
+* Priced
+
+Setting variables and two hooks. No package is loaded here, so the cost is
+below the resolution of =bench.sh=: this file is a few hundred microseconds of
+=eval=, not a load.
+
+* Restoring what =early-init= borrowed
+
+Both thresholds and the handler list are given back exactly once, when init is
+over. Restoring from a hook rather than from the last init file means it
+happens even if a later module errors.
+
+#+begin_src emacs-lisp
+;; -*- lexical-binding: t; -*-
+(defvar my/state-dir)     ; bound in early-init.org
+
+(defun my/restore-after-init ()
+  "Undo the temporary damage `early-init.org' does on purpose."
+  (setq gc-cons-threshold (* 16 1024 1024)   ; 16 MB for a long session
+        gc-cons-percentage 0.1)
+  (when (boundp 'my/file-name-handler-alist)
+    ;; Merge rather than overwrite: handlers registered while init ran (for
+    ;; example TRAMP's archive handler) must survive, and the saved list must
+    ;; come back. `delete-dups' on pairs compares with `equal'.
+    (setq file-name-handler-alist
+          (delete-dups (append file-name-handler-alist
+                               my/file-name-handler-alist)))
+    (makunbound 'my/file-name-handler-alist)))
+
+(add-hook 'emacs-startup-hook #'my/restore-after-init)
+#+end_src
+
+* A6 — version control
+
+Only Git. Vector-control asks every backend about every file it visits, and
+this machine has no hg, svn or bzr repositories.
+
+#+begin_src emacs-lisp
+(setq vc-handled-backends '(Git))
+#+end_src
+
+* A7 — process output
+
+The default 65,536 is fine for a shell command but is the wrong shape for a
+language server, which can emit hundreds of kilobytes in one message. 1 MB is
+the largest legal value on Linux: =/proc/sys/fs/pipe-max-size= here is exactly
+1,048,576. On Windows and macOS the variable is only a read-chunk ceiling.
+
+#+begin_src emacs-lisp
+(setq read-process-output-max (* 1024 1024))   ; 1 MB
+#+end_src
+
+* A8 — encoding
+
+UTF-8 for files, processes and the terminal. This is what makes the same files
+readable on Linux and on Windows, where the default is otherwise a code page.
+
+#+begin_src emacs-lisp
+(set-language-environment "UTF-8")
+(prefer-coding-system 'utf-8)
+(setq-default buffer-file-coding-system 'utf-8-unix
+              default-process-coding-system '(utf-8-unix . utf-8-unix))
+#+end_src
+
+* A9 — custom-file
+
+=M-x customize= must never write into a tracked source file. It writes to the
+profile's state directory, and anything worth keeping is promoted by hand into
+the relevant =.org=.
+
+#+begin_src emacs-lisp
+(setq custom-file (expand-file-name "custom.el" my/state-dir))
+(load custom-file 'noerror 'nomessage)
+#+end_src
+
+* A11 — text direction
+
+Non-nil here means "every buffer is left-to-right", which the Emacs docstring
+says *might speed up redisplay*, and which is true of everything in the shared
+base. It is a =setq-default=, so a profile may override it: the Hebrew profile
+sets nil, meaning "decide per paragraph from the first strong character",
+which is both correct for mixed text and the permanent cure for the old
+config's most damaging bug.
+
+=bidi-display-reordering= is deliberately untouched: its docstring says
+setting it to nil is for debugging and is not supported, and measurement here
+showed no gain (0.20 ms vs 0.20 ms per redraw on a 1.6 MB file).
+
+#+begin_src emacs-lisp
+(setq-default bidi-paragraph-direction 'left-to-right)
+#+end_src
+
+* A10 — long lines and large files
+
+=global-so-long-mode= is the built-in answer to minified files and long JSON:
+it turns slow modes off in a buffer that would stall redisplay. The large-file
+guard is a single threshold any profile may lower; it turns off line numbers
+there, because line numbering is linear work per displayed line and is the
+usual reason a 500 KB file scrolls badly.
+
+The mode itself is started by `my/start-idle-modes' below, together with
+which-key: both are protections against files and keys you have not touched
+yet, so both can wait one second.
+
+#+begin_src emacs-lisp
+(defvar my/large-file-size (* 1024 1024)
+  "Buffers larger than this get the cheap display treatment.")
+
+(defun my/maybe-lighten-large-buffer ()
+  "Disable per-line decoration in buffers above `my/large-file-size'."
+  (when (> (buffer-size) my/large-file-size)
+    (when (bound-and-true-p display-line-numbers-mode)
+      (display-line-numbers-mode -1))))
+
+(add-hook 'find-file-hook #'my/maybe-lighten-large-buffer)
+#+end_src
+
+* B5 — which-key
+
+Built into Emacs 30 and later, so this is a guard, not a dependency: on Emacs
+29 the line does nothing and there is nothing to install. It loads on the
+first prefix key, so it costs nothing at startup.
+
+#+begin_src emacs-lisp
+(defun my/start-idle-modes ()
+  "Start the global modes whose only job is to protect against later trouble.
+
+Measured cold on this machine: `global-so-long-mode' 85 ms, `delete-selection-mode'
+16 ms, `which-key-mode' 25 ms. None of them is needed before the first key
+press or the first minified file, so all three are paid one second after
+startup, when the user is reading rather than waiting."
+  (global-so-long-mode 1)
+  (when (boundp 'delete-selection-mode)
+    (delete-selection-mode 1))
+  (when (fboundp 'which-key-mode)
+    (which-key-mode 1)))
+
+(add-hook 'emacs-startup-hook
+          (lambda () (run-with-idle-timer 1.0 nil #'my/start-idle-modes)))
+#+end_src
+
+* C — Emacs defaults that are wrong for modern use
+
+Not a list of preferences: each line is a default that produces a wrong or
+annoying result in ordinary use, and each costs nothing at startup. Anything
+that would need a package is not here — it is a package decision.
+
+#+begin_src emacs-lisp
+(setq sentence-end-double-space nil   ; C1  "word. Word" is a sentence end
+      use-short-answers t             ; C3  y/n instead of yes/no
+      delete-by-moving-to-trash t     ; C4  delete uses the desktop trash
+      use-dialog-box nil              ; C5  no native modal dialogs …
+      use-file-dialog nil             ;     … for file selection either
+      scroll-conservatively 101       ; C6  scroll a line, don't re-centre
+      scroll-preserve-screen-position t ; C7  keep text still under C-v/M-v
+      auto-save-no-message t          ; C9  it saves either way; stop narrating
+      ring-bell-function #'ignore     ; C10 no bell on a failed command
+      enable-recursive-minibuffers t  ; C11 open a file from inside a prompt
+      save-interprogram-paste-before-kill t ; C12 don't clobber the clipboard
+      vc-follow-symlinks nil)         ; C14 visit the link, don't ask
+
+;; C2 and C8 are automatically buffer-local, so they need `setq-default' to
+;; reach buffers that do not exist yet. (One form each: a trailing comment
+;; after a multi-line `setq' would swallow the closing paren.)
+(setq-default indent-tabs-mode nil)     ; C2  no tabs written into files
+(setq-default require-final-newline t)  ; C8  no missing-newline diffs
+#+end_src
+
+C13 (`delete-selection-mode', 16 ms to load) is started by
+`my/start-idle-modes' above, with the other modes nobody needs in the first
+second.
+
+**Deliberately not here.** `line-move-visual' stays at Emacs's default (visual
+movement): it belongs to the Hebrew profile, where physical line movement is
+wrong for wrapped RTL text. `fill-column' stays at 70 and belongs to the
+profiles that fill prose — together with the centred-column view, which is a
+package and therefore a profile decision.
