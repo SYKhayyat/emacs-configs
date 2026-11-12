@@ -59,7 +59,9 @@ bin/check.sh          # prove the agreed settings are actually in effect
 3. Nothing enters without a measured price. `bin/bench.sh` is the court.
 4. `base/` is profile-agnostic. If only one profile needs it, it goes there.
 5. Cheap things may be deferred to an idle timer; deferred things are still
-   priced and recorded.
+   priced and recorded. An idle timer alone is not trusted: it is postponed by
+   frame and focus events, so `my/schedule-idle-modes` pairs it with a
+   wall-clock fallback.
 
 ## Measured, stage 1 (Emacs 31.1, Linux/NixOS, 2026-11-12)
 
@@ -75,6 +77,8 @@ absolute values as fingerprints of this machine.
 | **our whole startup cost** | **10–17 ms** |
 | idle modes (so-long + delete-selection + which-key, cold) | 11–21 ms, paid 1 s after startup |
 | `emacs-init-time`, real tty launch | 0.043–0.060 s |
+| `emacs-init-time`, GUI launch (Wayland/PGTK) | 0.72–0.78 s — but `emacs -Q` alone is 0.80–0.96 s, so this is Emacs's own GUI and font startup, not this repository |
+| daemon (`--daemon`) to modes-live | < 1.2 s; `emacsclient` round trip ~45 ms |
 
 Deliberately not in: `inhibit-compacting-font-caches` (spends memory
 permanently), `bidi-display-reordering` nil (debugging-only, measured no gain),

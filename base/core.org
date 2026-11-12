@@ -126,21 +126,38 @@ Built into Emacs 30 and later, so this is a guard, not a dependency: on Emacs
 first prefix key, so it costs nothing at startup.
 
 #+begin_src emacs-lisp
+(defvar my/idle-modes-started nil
+  "Non-nil once the deferred modes have been started.")
+
 (defun my/start-idle-modes ()
   "Start the global modes whose only job is to protect against later trouble.
 
 Measured cold on this machine: `global-so-long-mode' 85 ms, `delete-selection-mode'
 16 ms, `which-key-mode' 25 ms. None of them is needed before the first key
-press or the first minified file, so all three are paid one second after
-startup, when the user is reading rather than waiting."
-  (global-so-long-mode 1)
-  (when (boundp 'delete-selection-mode)
-    (delete-selection-mode 1))
-  (when (fboundp 'which-key-mode)
-    (which-key-mode 1)))
+press or the first minified file, so all three are paid after `emacs-startup',
+when the user is reading rather than waiting.
 
-(add-hook 'emacs-startup-hook
-          (lambda () (run-with-idle-timer 1.0 nil #'my/start-idle-modes)))
+This is idempotent, because it has two callers: the idle timer and its
+fallback."
+  (unless my/idle-modes-started
+    (setq my/idle-modes-started t)
+    (global-so-long-mode 1)
+    (when (boundp 'delete-selection-mode)
+      (delete-selection-mode 1))
+    (when (fboundp 'which-key-mode)
+      (which-key-mode 1))))
+
+(defun my/schedule-idle-modes ()
+  "Start the deferred modes once Emacs goes idle, and once again by the clock.
+
+An idle timer alone is not enough: it is postponed whenever Emacs has anything
+to do — a focus event, a metrics request, a message — and in a GUI session it
+was observed not to fire at all in 1 run out of 9. A wall-clock timer cannot be
+postponed that way. Either one may win; `my/start-idle-modes' runs once."
+  (run-with-idle-timer 1.0 nil #'my/start-idle-modes)
+  (run-with-timer 3.0 nil #'my/start-idle-modes))
+
+(add-hook 'emacs-startup-hook #'my/schedule-idle-modes)
 #+end_src
 
 * C — Emacs defaults that are wrong for modern use
