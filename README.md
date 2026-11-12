@@ -85,5 +85,24 @@ permanently), `bidi-display-reordering` nil (debugging-only, measured no gain),
 `most-positive-fixnum` GC (maintainer-warned; 32 MB is as fast), completion
 packages, savehist/recentf — all deferred pending decisions.
 
+## Not yet verified (in the repo on purpose, so it is not mistaken for done)
+
+- **No run on Windows or macOS yet.** Relative paths, the `.cmd` twins, the
+  desktop trash and the absence of Nix are reasoned, not observed. The first
+  `bin\emacs-hebrew.cmd` on Windows is the real test.
+- **No font decision.** The base sets none; the frame picks up whatever the
+  system offers (here JetBrainsMono from fontconfig). Hebrew fonts belong to
+  the Hebrew profile.
+- **`save-interprogram-paste-before-kill` is startup-free but not cost-free:**
+  it reads the clipboard on every kill, and a stuck clipboard owner is a known
+  freeze vector on X11/Wayland. Revisit if kills ever feel slow.
+- **`my/maybe-lighten-large-buffer` is currently dead code**: it hangs off
+  `find-file-hook`, but nothing enables line numbers yet. It becomes real in
+  stage 4, or it gets deleted.
+- **The auto-save redirect also matches remote (TRAMP) files** and has not been
+  exercised over a remote connection.
+- **`which-key` is a guard, not a dependency**: on Emacs 29 the line does
+  nothing. We run 31, where it is built in.
+
 `package.el` activation costs ~200 ms and is therefore conditional: it is
 skipped entirely while `elpa/` is empty (see `base/packages.org`).
