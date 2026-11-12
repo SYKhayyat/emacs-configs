@@ -47,6 +47,7 @@ bin/build.sh          # tangle every .org, byte-compile, report warnings
 bin/build.sh --check  # fail if any .el is older than its .org
 bin/bench.sh          # price: floor, per-phase, per-module
 bin/check.sh          # prove the agreed settings are actually in effect
+bin/gui-test.sh NAME  # GUI launch on a private Xvfb display, off-screen (Linux)
 ```
 
 ## Rules of the house
@@ -90,6 +91,9 @@ packages, savehist/recentf — all deferred pending decisions.
 - **No run on Windows or macOS yet.** Relative paths, the `.cmd` twins, the
   desktop trash and the absence of Nix are reasoned, not observed. The first
   `bin\emacs-hebrew.cmd` on Windows is the real test.
+- **GUI tests run off-screen.** `bin/gui-test.sh` starts a private Xvfb
+  display, because a GUI launch on the user's real display puts windows on
+  their screen. Not available on macOS/Windows.
 - **No font decision.** The base sets none; the frame picks up whatever the
   system offers (here JetBrainsMono from fontconfig). Hebrew fonts belong to
   the Hebrew profile.
