@@ -33,7 +33,9 @@ the fixtures in `test/export/fixtures/` fail closed if a re-vendor drops one.
    document starts below level 1, the generated Footnotes heading gets relative
    level 0, which typst rejects with `number must be positive`.
 
-A patch for upstream is kept as `upstream.patch` in this directory.
+A patch for upstream is kept as `upstream.patch` in this directory and was sent
+as https://github.com/jmpunkt/ox-typst/pull/62. If upstream merges it, the next
+re-vendor drops the local patch and the fixtures prove it.
 
 ## Updating
 
