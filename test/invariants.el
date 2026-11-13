@@ -77,6 +77,34 @@
   ;; GC is restored to 16 MB, not left at the 32 MB used during init.
   (unless (= gc-cons-threshold (* 16 1024 1024))
     (push (format "  gc-cons-threshold is %d, want 16777216" gc-cons-threshold) bad))
+  ;; Load order is a file, so anything not in that file never loads — silently.
+  ;; A profile MANIFEST at the profile root is worse: it is not read at all.
+  ;; Both were true here once, and the only symptom was a setting that was
+  ;; written and not in effect, which is exactly what this file exists to catch.
+  (let ((profile-manifest (expand-file-name "MANIFEST" my/config-dir)))
+    (when (file-exists-p profile-manifest)
+      (push (format "  %s exists but is never read; the loader reads modules/MANIFEST"
+                    profile-manifest)
+            bad)))
+  (dolist (dir (list (expand-file-name "modules" my/config-dir)
+                     (expand-file-name "base" my/repo-root)))
+    (let ((manifest (expand-file-name "MANIFEST" dir))
+          ;; Loaded by other means, and named here so the exception is visible
+          ;; rather than implied by a missing check:
+          ;;   early-init.el  the bootstrap loads it before the loader exists
+          ;;   loader.el      the bootstrap loads it, it is the loader
+          ;;   bench.el       only when MY_BENCH is set
+          (not-in-manifest '("early-init.el" "loader.el" "bench.el")))
+      (dolist (el (directory-files dir t "\\.el\\'"))
+        (unless (or (member (file-name-nondirectory el) not-in-manifest)
+                    (with-temp-buffer
+                      (insert-file-contents manifest)
+                      (goto-char (point-min))
+                      (re-search-forward
+                       (concat "^" (regexp-quote (file-name-nondirectory el)) "$") nil t)))
+          (push (format "  %s is not listed in %s, so it never loads"
+                        (file-name-nondirectory el) manifest)
+                bad)))))
   (if bad
       (progn
         (princ (format "FAIL %s (%d)\n%s\n" my/profile (length bad)
