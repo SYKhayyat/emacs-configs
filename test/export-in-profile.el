@@ -102,6 +102,38 @@
                (error
                 (my/export-test-fail "typst generation signalled: %S" err)))))))
 
+        ;; ---- 3. footnotes come out in reading order, not definition order ---
+        ;; typst numbers notes by definition order, so an unsorted definitions
+        ;; section yields backwards numbers. The export must stage and
+        ;; renumber; the source file must be untouched.
+        (let ((oo (expand-file-name "outoforder.org" work)))
+          (copy-file (expand-file-name "test/export/fixtures/10-footnotes-out-of-order.org" root) oo t)
+          (let ((before (with-temp-buffer (insert-file-contents oo) (buffer-string)))
+                (typst nil))
+            (my/export-test--with-file
+             oo
+             (lambda ()
+               (condition-case err
+                   (progn
+                     (my/org-footnotes-in-reference-order)
+                     (org-typst-export-as-typst)
+                     (setq typst (with-current-buffer org-typst-export-buffer-name
+                                   (buffer-string))))
+                 (error
+                  (my/export-test-fail "order typst signalled: %S" err)))))
+            ;; Reference order is fn:2 then fn:1; after ordering the generated
+            ;; typst must reference note 1 before note 2, and the footnote
+            ;; section must still be there.
+            (when typst
+              (unless (string-match "#footnote(label(.1.))[^#]*#footnote(label(.2.))" typst)
+                (my/export-test-fail "footnotes not in reading order in the generated typst"))
+              ;; Ordering must not lose a note: both bodies have to survive it.
+              (dolist (note '("הערה ראשונה בסדר הקריאה" "הערה שניה בסדר הקריאה"))
+                (unless (string-match-p (regexp-quote note) typst)
+                  (my/export-test-fail "note lost while ordering: %S" note))))
+            (unless (string= before (with-temp-buffer (insert-file-contents oo) (buffer-string)))
+              (my/export-test-fail "ordering rewrote the source file"))))
+
     ;; A fixture that failed early must not poison the next run.
     (dolist (dir (seq-difference (my/export-test--temp-dirs) temps-before))
       (ignore-errors (delete-directory dir t)))

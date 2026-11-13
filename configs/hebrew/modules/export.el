@@ -9,13 +9,32 @@
 ;; heading in a Hebrew sefer aligns to the right margin like the text under it.
 (setq org-export-default-language "he")
 
-(defun my/org-typst-export-pdf (&optional _async subtreep visible-only body-only ext-plist)
+(defun my/org-footnotes-in-reference-order ()
+  "Order and renumber this buffer's footnotes in reading order.
+
+Typst numbers notes by their definition order, so a definition list that is not
+in the order the notes are first referenced produces numbers that read
+backwards.  Org's own `org-footnote-normalize' renumbers and re-sorts the
+definitions to match; this is just the promise that it runs, and that it runs on
+a copy, not on the file the user is editing."
+  (require 'org)
+  (let ((t0 (when (bound-and-true-p my/bench) (float-time))))
+    (org-footnote-normalize)
+    (when (and (bound-and-true-p my/bench) t0)
+      (message "footnotes ordered in %.0f ms" (* 1000 (- (float-time) t0))))))
+
+(defun my/org-typst-export-pdf (&optional async subtreep visible-only body-only ext-plist)
   "Export the current Org buffer to a PDF beside it, leaving nothing else behind.
 
-The Typst file is written to a fresh temporary directory and compiled with that
-directory's parent as --root, then deleted.  Only NAME.pdf remains, next to
-NAME.org.  This replaces `org-typst-export-to-pdf', which writes NAME.typ into
-the source directory, so the stock export menu needs no new key."
+Footnotes are put in reading order first, by
+`my/org-footnotes-in-reference-order', on an unsaved copy staged in the source
+directory: the PDF then numbers notes 1, 2, 3 ... in the order they are
+referenced, whatever order the definitions sit in the file, and the file itself
+is never rewritten.  The staged copy and the working Typst file are both
+deleted, so only NAME.pdf remains, next to NAME.org.
+
+SUBTREEP is passed straight through without ordering, since ordering is a
+whole-file operation."
   (unless buffer-file-name
     (user-error "This buffer is not visiting a file, so there is nowhere to put a PDF"))
   (let* ((src buffer-file-name)
@@ -24,10 +43,23 @@ the source directory, so the stock export menu needs no new key."
          (pdf (expand-file-name (concat base ".pdf") dir))
          ;; Beside the source: typst requires the input to be inside --root, and
          ;; the root has to stay the source directory for relative references.
-         (typ (make-temp-file (expand-file-name ".typst-" dir) nil ".typ")))
+         (typ (make-temp-file (expand-file-name ".typst-" dir) nil ".typ"))
+         (staged (unless subtreep
+                   (make-temp-file (expand-file-name ".export-" dir) nil ".org"))))
     (unwind-protect
         (progn
-          (org-typst-export-as-typst nil subtreep visible-only body-only ext-plist)
+          (if subtreep
+              (org-typst-export-as-typst async t visible-only body-only ext-plist)
+            ;; Stage the current, possibly unsaved, contents; order the notes in
+            ;; the copy; export from the copy.
+            ;; Read the text first: inside `with-temp-file' the current buffer is
+            ;; the temporary one, and point-min/max would refer to an empty file.
+            (let ((body (buffer-substring-no-properties (point-min) (point-max))))
+              (with-temp-file staged (insert body)))
+            (with-current-buffer (find-file-noselect staged)
+              (org-mode)
+              (my/org-footnotes-in-reference-order)
+              (org-typst-export-as-typst async nil visible-only body-only ext-plist)))
           (with-current-buffer org-typst-export-buffer-name
             (write-region (point-min) (point-max) typ nil 'silent))
           (let ((made (org-typst-compile typ)))
@@ -36,6 +68,13 @@ the source directory, so the stock export menu needs no new key."
             (rename-file made pdf t)
             (message "Exported %s" pdf)
             pdf))
+      ;; The staged org file gets a buffer of its own; it must not outlive the
+      ;; export, and it must never be saved back.
+      (let ((b (and staged (get-file-buffer staged))))
+        (when b
+          (with-current-buffer b (set-buffer-modified-p nil))
+          (kill-buffer b)))
+      (when (and staged (file-exists-p staged)) (delete-file staged))
       (when (file-exists-p typ) (delete-file typ))
       ;; typst writes NAME.pdf beside NAME.typ before it is renamed above; a
       ;; failed run leaves that partial file, which is not a document.
