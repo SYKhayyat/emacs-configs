@@ -116,3 +116,5 @@ packages, savehist/recentf — all deferred pending decisions.
 
 `package.el` activation costs ~200 ms and is therefore conditional: it is
 skipped entirely while `elpa/` is empty (see `base/packages.org`).
+
+State of the work, open decisions and next steps: [HANDOFF.md](HANDOFF.md).
