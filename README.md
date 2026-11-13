@@ -4,7 +4,7 @@ Three Emacs profiles on one priced base. Nothing gets in without a number.
 
 | profile | for | state |
 |---|---|---|
-| `hebrew` | Hebrew org: writing, reading, one export path | stage 1 base only |
+| `hebrew` | Hebrew org: writing, reading, one export path (PDF beside the source, `.typ` deleted) | export module, 0.64 ms |
 | `notes` | English writing and reading | stage 1 base only |
 | `ide` | code, LSP, git, projects | stage 1 base only |
 

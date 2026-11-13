@@ -100,13 +100,26 @@ else
 fi
 
 # ---- export --------------------------------------------------------------
-# The export path is accepted on the strength of what compiles, not of what
-# worked once: every fixture must still reach a PDF through the vendored
-# ox-typst.
+# Two layers. The fixtures prove the vendored ox-typst compiles to a PDF; the
+# profile check proves the hebrew profile exports exactly one .pdf beside the
+# source and leaves no .typ anywhere. A missing redirect, or one lost in a
+# re-vendor, is a failed run.
 if "$root/bin/check-export.sh" >/dev/null 2>&1; then
   printf 'ok   export: fixtures compile to PDF\n'
 else
   fail 'export: a fixture did not compile'
+fi
+
+out=$(emacs -Q --batch \
+        -l "$root/configs/hebrew/early-init.el" \
+        -l "$root/configs/hebrew/init.el" \
+        -l "$root/test/export-in-profile.el" 2>&1)
+quiet=$(printf '%s\n' "$out" | grep -v '^[[:space:]]*$' | grep -cv '^ok   export in profile:')
+if [ "$quiet" -eq 0 ] && printf '%s' "$out" | grep -q '^ok   export in profile:'; then
+  printf 'ok   export in profile: single PDF, no strays\n'
+else
+  printf '%s\n' "$out"
+  fail 'export in profile: exporter left files behind or failed'
 fi
 
 [ "$status" -eq 0 ] && printf 'clean: 3 profiles, batch and gui, no unexpected output\n'
