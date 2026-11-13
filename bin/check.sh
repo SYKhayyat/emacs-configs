@@ -122,5 +122,22 @@ else
   fail 'export in profile: exporter left files behind or failed'
 fi
 
+# ---- footnote placement ---------------------------------------------------
+# A footnote that renders is not a footnote that sits at the bottom. This reads
+# the y coordinates out of the PDF and refuses a note that is in the flow.
+out=$(emacs -Q --batch \
+        -l "$root/configs/hebrew/early-init.el" \
+        -l "$root/configs/hebrew/init.el" \
+        -l "$root/test/export-footnote-placement.el" 2>&1)
+case "$out" in
+  "ok   footnotes: standard and inline notes land at the page bottom"*)
+    printf 'ok   footnotes: at the page bottom, not in the flow\n' ;;
+  *"skip footnote placement:"*)
+    printf '%s\n' "$out" ;;
+  *)
+    printf '%s\n' "$out"
+    fail 'footnotes: a note is not at the page bottom' ;;
+esac
+
 [ "$status" -eq 0 ] && printf 'clean: 3 profiles, batch and gui, no unexpected output\n'
 exit $status
