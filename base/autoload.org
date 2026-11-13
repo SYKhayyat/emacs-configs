@@ -1,0 +1,78 @@
+#+TITLE: autoload — know about a package without loading it
+#+PROPERTY: header-args:emacs-lisp :tangle ./autoload.el
+#+PROPERTY: header-args+: :results none
+
+* Why this exists
+
+Emacs cannot run a command it has never heard of. What it "hears" is an
+autoloads file: one index card per package, naming each command and the file to
+load when one is invoked.
+
+=package-initialize= reads every card at startup. Measured in this repository
+with a single package installed: **250–300 ms**, and that number is not payment
+for the package — it is package.el re-scanning the directory and re-reading
+every card on every launch. It grows with each package added.
+
+Reading one card instead costs **1 ms**. The package's code then loads the
+first time one of its commands runs, which for an exporter is when the user
+exports something, and by then org is loaded anyway.
+
+This is stage 1 of every package this repository will carry: the base never
+calls `package-initialize` while =elpa/= is empty (see =packages.org=), and a
+profile names what it wants with one line per package.
+
+* Priced
+
+| what | cost |
+|---|---|
+| one =my/autoload= call (one card) | **1 ms** |
+| the same via =package-initialize= | 250–300 ms, and grows per package |
+
+* Code
+
+#+begin_src emacs-lisp
+;; -*- lexical-binding: t; -*-
+(defvar my/vendor-dir (expand-file-name "vendor" my/repo-root)
+  "Packages committed into this repository, so a clone needs no network.")
+
+(defvar my/autoloaded nil
+  "Packages whose autoloads have been read, so each card is read once.")
+
+(defun my/library-directory (name)
+  "Return the directory holding package NAME, or nil.
+
+Vendored packages first, then the shared =elpa/= directory, whose package
+directories carry a version suffix."
+  (let ((vendored (expand-file-name name my/vendor-dir))
+        (installed (and (boundp 'package-user-dir)
+                        (stringp package-user-dir)
+                        (car (file-expand-wildcards
+                              (expand-file-name (concat name "-*")
+                                                package-user-dir)
+                              t)))))
+    (cond ((file-directory-p vendored) vendored)
+          ((and installed (file-directory-p installed)) installed))))
+
+(defun my/autoload (name)
+  "Make NAME's commands known without loading its code.
+
+Reads only NAME-autoloads.el, which registers the commands and puts the package
+directory on `load-path'; the code itself is loaded the first time one of those
+commands runs.
+
+Fails loudly when NAME is absent. A package that is simply not there must not
+surface an hour later as a void-function in the middle of writing."
+  (unless (member name my/autoloaded)
+    (let ((dir (my/library-directory name)))
+      (unless dir
+        (error "Package %s is not installed: no %s in %s and nothing matching %s-* in %s"
+               name (expand-file-name name my/vendor-dir) my/vendor-dir
+               name (if (boundp 'package-user-dir) package-user-dir "elpa/")))
+      (let ((autoloads (expand-file-name (concat name "-autoloads.el") dir)))
+        (unless (file-readable-p autoloads)
+          (error "Package %s has no %s-autoloads.el (looked in %s)"
+                 name name dir))
+        (load autoloads nil 'nomessage)
+        (push name my/autoloaded)))
+    t))
+#+end_src

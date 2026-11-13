@@ -1,4 +1,5 @@
 # Loaded in this order by init.el. Blank lines and # comments ignored.
 packages.el
+autoload.el
 core.el
 files.el
