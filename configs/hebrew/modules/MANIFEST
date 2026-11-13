@@ -1,3 +1,4 @@
 # Modules for the hebrew profile, in load order.
 reading.el
 export.el
+footnotes.el

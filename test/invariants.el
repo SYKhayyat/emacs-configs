@@ -63,6 +63,28 @@
                     (car pair) (cdr pair) (and (boundp (car pair))
                                                (symbol-value (car pair))))
             bad)))
+  ;; A profile that promises footnote definitions at the bottom of the file has
+  ;; that promise checked, not assumed: a new note must land in a "* Footnotes"
+  ;; section after everything else, and inline definitions must not be created.
+  ;; Only the hebrew profile promises it; the notes profile joins in stage 3.
+  (when (eq my/profile 'hebrew)
+    (require 'org)
+    (unless (eq (default-value 'org-footnote-define-inline) nil)
+      (push (format "  %-38s want nil, got %S"
+                    'org-footnote-define-inline
+                    (default-value 'org-footnote-define-inline))
+            bad))
+    (let ((where (with-temp-buffer
+                   (insert "* heading\nsome text with a note")
+                   (org-mode)
+                   (goto-char (point-max))
+                   ;; org announces where it put point; a check must be silent.
+                   (let ((inhibit-message t)) (org-footnote-action))
+                   (buffer-string))))
+      (unless (string-match-p "\\(?:^\\|\\n\\)\\* Footnotes\\s-*$" where)
+        (push (format "  a new footnote did not land in a bottom Footnotes section: %S"
+                      where)
+              bad))))
   ;; Paths must stay inside this checkout.
   (unless (string-prefix-p my/repo-root custom-file)
     (push (format "  custom-file outside the repo: %s" custom-file) bad))
