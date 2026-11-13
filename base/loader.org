@@ -66,6 +66,11 @@ mistake as an unescaped quote anywhere in Elisp.)"
           (let ((line (string-trim (buffer-substring (line-beginning-position)
                                                      (line-end-position)))))
             (unless (or (string-empty-p line) (string-prefix-p "#" line))
+              ;; A bare stem in the manifest would let `load' prefer a stale
+              ;; byte-compiled file. Name the source explicitly.
+              (unless (string-suffix-p ".el" line)
+                (error "MANIFEST entry must name a .el file: %s (in %s)"
+                       line manifest))
               (let ((file (expand-file-name line dir)))
                 (unless (file-readable-p file)
                   (error "MANIFEST entry not readable: %s (in %s)" line manifest))

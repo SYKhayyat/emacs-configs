@@ -68,6 +68,12 @@
     (push (format "  custom-file outside the repo: %s" custom-file) bad))
   (unless (string-prefix-p (expand-file-name "elpa" my/repo-root) package-user-dir)
     (push (format "  package-user-dir outside the repo: %s" package-user-dir) bad))
+  ;; The crash-recovery list follows user-emacs-directory, which --init-directory
+  ;; points at configs/<profile>/ inside the checkout. It must be redirected.
+  (unless (string-prefix-p (expand-file-name "state" my/repo-root)
+                           auto-save-list-file-prefix)
+    (push (format "  auto-save-list-file-prefix outside state/: %s"
+                  auto-save-list-file-prefix) bad))
   ;; GC is restored to 16 MB, not left at the 32 MB used during init.
   (unless (= gc-cons-threshold (* 16 1024 1024))
     (push (format "  gc-cons-threshold is %d, want 16777216" gc-cons-threshold) bad))

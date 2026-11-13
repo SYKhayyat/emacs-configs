@@ -26,7 +26,16 @@
               default-process-coding-system '(utf-8-unix . utf-8-unix))
 
 (setq custom-file (expand-file-name "custom.el" my/state-dir))
-(load custom-file 'noerror 'nomessage)
+
+;; `noerror' covers a missing file, not a malformed one. Measured: two lines of
+;; garbage in custom.el made Emacs die before the first frame, and that file is
+;; written by Emacs itself, so a crash can leave it corrupt. Refusing to start
+;; over a settings file is the wrong trade: report it and carry on, leaving the
+;; file in place for inspection.
+(condition-case err
+    (load custom-file 'noerror 'nomessage)
+  (error (message "custom-file ignored (%s): %s"
+                  (error-message-string err) custom-file)))
 
 (setq-default bidi-paragraph-direction 'left-to-right)
 
