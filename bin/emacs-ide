@@ -1,4 +1,4 @@
 #!/bin/sh
-# Launch the ide profile. Same file exists per profile, for muscle memory.
+# Launch the ide profile, daemon-first. All the logic is in launch.sh, once.
 root=$(cd "$(dirname "$0")/.." && pwd)
-exec emacs --init-directory="$root/configs/ide" "$@"
+exec "$root/bin/launch.sh" ide "$@"
