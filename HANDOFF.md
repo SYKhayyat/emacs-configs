@@ -19,6 +19,28 @@ shared base, inside a single repo, with no Nix and no network at load time. A
 syntax colouring, font choice, decoration — is off by default, and anything
 added has to arrive with a measured price and an explicit yes.
 
+## The stages, in order
+
+The work is five stages, and it stays in this order: nothing later is started
+while an earlier one is unfinished.
+
+1. **Base** — the shared performance base every profile inherits: startup,
+   GC, files, keys that annoy, the loader and its `MANIFEST`. **Done.**
+2. **Hebrew notes** (`hebrew`) — Hebrew org writing and reading, one export
+   path. Reading, export and footnotes are done and measured; the Hebrew buffer
+   work (cursor direction, RTL movement, centred column) is the open part.
+   **In progress** (comtai #1).
+3. **English notes** (`notes`) — English writing and reading, footnotes, basic
+   headings and lists, one export path. **Not started** (comtai #2). The
+   footnote settings currently live in the hebrew profile and move to the shared
+   base here, once two profiles want them.
+4. **IDE** (`ide`) — Rust/TS/JS/Python/Java/Common Lisp, faster and lighter than
+   Kate or Zed. **Not started** (comtai #3).
+5. **Triage of the old config** (`emacs-config-deprecated`) — go through it
+   **bit by bit**, and for each piece decide keep or drop, with the price of
+   keeping it. **Not started** (comtai #4). Nothing from the old config is
+   migrated before this stage; that is what keeps the new tree small.
+
 ## How it fits together
 
 ```
@@ -113,12 +135,12 @@ messages say `refs comtai#1` — do **not** write `closes` for a stage task unti
 the stage is actually finished; that mistake was made once and had to be
 reopened.
 
-## Suggested order of work
+## Order of work from here
 
-1. Decide the centring question above, then price and implement the Hebrew
-   buffer work (cursor/RTL/centred).
-2. Measure and, if anything caps it, lift the heading and list depth limits.
-3. Stage 3 `emacs-notes`, lifting the footnote settings into the shared base
-   once two profiles want them.
-4. Stage 4 `emacs-ide`, then stage 5 triage of `emacs-config-deprecated`.
-5. First run on Windows/macOS before calling anything finished.
+1. Finish stage 2: decide the centring question above, then price and implement
+   the Hebrew buffer work (cursor/RTL/centred), then unbounded heading and list
+   depth if anything caps them.
+2. Stage 3 `emacs-notes`.
+3. Stage 4 `emacs-ide`.
+4. Stage 5: old-config triage, bit by bit, each item priced.
+5. First run on Windows/macOS before calling any stage finished.
