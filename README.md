@@ -97,11 +97,15 @@ packages, savehist/recentf — all deferred pending decisions.
 - **No font decision.** The base sets none; the frame picks up whatever the
   system offers (here JetBrainsMono from fontconfig). Hebrew fonts belong to
   the Hebrew profile.
-- **`save-interprogram-paste-before-kill` is startup-free but not cost-free:**
-  on an X11 display it reads the selection from whoever owns it, and a stuck
-  owner is a known freeze vector. On Wayland (this machine) the compositor
-  serves the clipboard, so that vector does not exist — the setting stays on
-  unconditionally. Revisit only if a kill ever feels slow.
+- **`save-interprogram-paste-before-kill`: measured on real Wayland.** With a
+  frame open, `(kill-new "KILLED")` while `wl-copy` held `OUTSIDE-TEXT` left the
+  kill ring as `("KILLED" "OUTSIDE-TEXT")`, at a cost of **1.5 ms per kill**
+  (`gui-selection-value` is the interprogram paste function). It stays on.
+  Two caveats worth knowing: in a **frame-less daemon the selection API is
+  inert** (reading returned nil and `gui-set-selection` did not take effect
+  until a client frame existed), and on X11 the read can block on a wedged
+  selection owner — a hazard that does not exist on Wayland, where the
+  compositor serves the clipboard.
 - **`my/maybe-lighten-large-buffer` is currently dead code**: it hangs off
   `find-file-hook`, but nothing enables line numbers yet. It becomes real in
   stage 4, or it gets deleted.
