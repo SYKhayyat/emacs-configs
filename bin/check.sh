@@ -116,7 +116,7 @@ out=$(emacs -Q --batch \
         -l "$root/test/export-in-profile.el" 2>&1)
 quiet=$(printf '%s\n' "$out" | grep -v '^[[:space:]]*$' | grep -cv '^ok   export in profile:')
 if [ "$quiet" -eq 0 ] && printf '%s' "$out" | grep -q '^ok   export in profile:'; then
-  printf 'ok   export in profile: single PDF, no strays\n'
+  printf 'ok   export in profile: one RTL PDF, no strays\n'
 else
   printf '%s\n' "$out"
   fail 'export in profile: exporter left files behind or failed'
