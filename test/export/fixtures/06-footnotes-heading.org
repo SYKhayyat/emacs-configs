@@ -1,0 +1,6 @@
+#+title: footnotes heading
+#+options: toc:nil
+
+טקסט נקי בלי סוגריים עם הערה[fn:1].
+
+[fn:1] הערה פשוטה.

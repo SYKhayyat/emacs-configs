@@ -1,0 +1,12 @@
+#+title: headings start below level one
+#+options: toc:nil
+
+** חמשה
+טקסט עם הערה[fn:1].
+
+** החרש
+עוד טקסט.
+
+* Footnotes
+
+[fn:1] הערה פשוטה.

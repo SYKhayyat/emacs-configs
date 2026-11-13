@@ -99,5 +99,15 @@ else
   printf 'skip gui: Xvfb not available (macOS/Windows: test by hand)\n'
 fi
 
+# ---- export --------------------------------------------------------------
+# The export path is accepted on the strength of what compiles, not of what
+# worked once: every fixture must still reach a PDF through the vendored
+# ox-typst.
+if "$root/bin/check-export.sh" >/dev/null 2>&1; then
+  printf 'ok   export: fixtures compile to PDF\n'
+else
+  fail 'export: a fixture did not compile'
+fi
+
 [ "$status" -eq 0 ] && printf 'clean: 3 profiles, batch and gui, no unexpected output\n'
 exit $status
