@@ -22,8 +22,26 @@ case "$profile" in
 esac
 command -v Xvfb >/dev/null 2>&1 || { echo "Xvfb not found; run this by hand" >&2; exit 3; }
 
-display=:$(( 90 + $(id -u) % 10 ))
-cleanup() { [ -n "${xvfb_pid:-}" ] && kill "$xvfb_pid" 2>/dev/null || true; }
+# A fixed display number races the previous run's teardown: if the old X server
+# is still dying, the new Emacs can attach to it and get stray resize/focus
+# events. That produced one unexplained "Beginning of buffer" in *Messages* in
+# about one run in three, which is exactly the sort of thing a check must not
+# have to explain away. Pick a free number, and wait for the server to exit.
+display=""
+for n in $(seq 90 120); do
+  if [ ! -e "/tmp/.X$n-lock" ] && [ ! -S "/tmp/.X11-unix/X$n" ]; then
+    display=":$n"
+    break
+  fi
+done
+[ -n "$display" ] || { echo "no free X display in :90-:120" >&2; exit 5; }
+
+cleanup() {
+  if [ -n "${xvfb_pid:-}" ]; then
+    kill "$xvfb_pid" 2>/dev/null || true
+    wait "$xvfb_pid" 2>/dev/null || true
+  fi
+}
 trap cleanup EXIT INT TERM
 
 Xvfb "$display" -screen 0 1400x900x24 >/dev/null 2>&1 &

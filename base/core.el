@@ -30,17 +30,6 @@
 
 (setq-default bidi-paragraph-direction 'left-to-right)
 
-(defvar my/large-file-size (* 1024 1024)
-  "Buffers larger than this get the cheap display treatment.")
-
-(defun my/maybe-lighten-large-buffer ()
-  "Disable per-line decoration in buffers above `my/large-file-size'."
-  (when (> (buffer-size) my/large-file-size)
-    (when (bound-and-true-p display-line-numbers-mode)
-      (display-line-numbers-mode -1))))
-
-(add-hook 'find-file-hook #'my/maybe-lighten-large-buffer)
-
 (defvar my/idle-modes-started nil
   "Non-nil once the deferred modes have been started.")
 

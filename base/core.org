@@ -94,30 +94,20 @@ showed no gain (0.20 ms vs 0.20 ms per redraw on a 1.6 MB file).
 (setq-default bidi-paragraph-direction 'left-to-right)
 #+end_src
 
-* A10 — long lines and large files
+* A10 — long lines
 
 =global-so-long-mode= is the built-in answer to minified files and long JSON:
-it turns slow modes off in a buffer that would stall redisplay. The large-file
-guard is a single threshold any profile may lower; it turns off line numbers
-there, because line numbering is linear work per displayed line and is the
-usual reason a 500 KB file scrolls badly.
+it turns slow modes off in a buffer that would stall redisplay. It is started by
+`my/start-idle-modes' below, together with which-key: both are protections
+against files and keys you have not touched yet, so both can wait a second.
 
-The mode itself is started by `my/start-idle-modes' below, together with
-which-key: both are protections against files and keys you have not touched
-yet, so both can wait one second.
+** Removed: the large-file line-number guard
 
-#+begin_src emacs-lisp
-(defvar my/large-file-size (* 1024 1024)
-  "Buffers larger than this get the cheap display treatment.")
-
-(defun my/maybe-lighten-large-buffer ()
-  "Disable per-line decoration in buffers above `my/large-file-size'."
-  (when (> (buffer-size) my/large-file-size)
-    (when (bound-and-true-p display-line-numbers-mode)
-      (display-line-numbers-mode -1))))
-
-(add-hook 'find-file-hook #'my/maybe-lighten-large-buffer)
-#+end_src
+An earlier version disabled `display-line-numbers-mode' above 1 MB. Nothing in
+this base enables line numbers, so the hook could never fire — untested code
+that looks like policy, which is precisely what this repository is trying not to
+be. It returns in stage 4, where the IDE profile turns line numbers on and the
+threshold can be measured against a real file.
 
 * B5 — which-key
 
