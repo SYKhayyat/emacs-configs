@@ -1,15 +1,19 @@
-;;; export-in-profile.el --- prove the hebrew profile exports to one PDF -*- lexical-binding: t; -*-
+;;; export-in-profile.el --- prove the hebrew profile exports one RTL PDF -*- lexical-binding: t; -*-
 ;;
 ;; Run with the hebrew profile loaded:
 ;;
 ;;   emacs -Q --batch -l configs/hebrew/early-init.el \
 ;;                  -l configs/hebrew/init.el -l test/export-in-profile.el
 ;;
-;; What is checked is the shape of the result, not the existence of a function:
-;;   1. the stock export command (the one the C-c C-e menu calls) works,
-;;   2. a PDF appears beside the source file,
-;;   3. no .typ file is left anywhere — not beside the source, not in tmp,
-;;   4. the temporary directory the exporter used is gone.
+;; Two claims are checked, both about the shape of the result rather than the
+;; existence of a function:
+;;
+;;   1. exporting leaves exactly one PDF beside the source — no .typ, no
+;;      temporary directory, no partial file from a failed run;
+;;   2. a Hebrew document is handed to Typst with an explicit direction, because
+;;      Typst infers direction from the first strong character and a numbered
+;;      heading starts with a Latin digit: without it the heading sits at the
+;;      left margin while the Hebrew body sits at the right.
 ;;
 ;; Any failure is fatal. A test that warns and continues is not a test.
 
@@ -25,57 +29,88 @@
   (directory-files-recursively dir "\\.typ\\'"))
 
 (defun my/export-test--temp-dirs ()
-  "The exporter's temporary working directories."
+  "The exporter's temporary working files in the system temp directory."
   (directory-files temporary-file-directory t "\\`org-typst-"))
+
+(defun my/export-test--with-file (org fn)
+  "Call FN in a buffer visiting ORG, then close the buffer without saving."
+  (unwind-protect
+      (with-current-buffer (find-file-noselect org)
+        (funcall fn))
+    (let ((buf (get-file-buffer org)))
+      (when buf
+        (with-current-buffer buf (set-buffer-modified-p nil))
+        (kill-buffer buf)))))
 
 (let* ((root (file-name-directory (directory-file-name
                                    (file-name-directory load-file-name))))
-       (fixture (expand-file-name "test/export/fixtures/03-footnotes.org" root))
        (work (make-temp-file "my-export-test-" t))
        (src (expand-file-name "sample.org" work))
        (pdf (expand-file-name "sample.pdf" work))
        (temps-before (my/export-test--temp-dirs)))
   (unwind-protect
       (progn
-        (unless (file-readable-p fixture)
-          (my/export-test-fail "fixture missing: %s" fixture))
-        (when (file-readable-p fixture)
-          (copy-file fixture src t)
+        ;; ---- 1. one PDF, nothing else -----------------------------------
+        (copy-file (expand-file-name "test/export/fixtures/03-footnotes.org" root) src t)
+        (my/export-test--with-file
+         src
+         (lambda ()
+           (condition-case err
+               (progn
+                 ;; The exporter announces the PDF to the echo area, which is
+                 ;; right interactively and noise in a check.
+                 (let ((inhibit-message t))
+                   (org-typst-export-to-pdf))
+                 (unless (file-exists-p pdf)
+                   (my/export-test-fail "no PDF beside the source: %s" pdf))
+                 (let ((stragglers (my/export-test--typ-files work)))
+                   (when stragglers
+                     (my/export-test-fail "left .typ behind: %s"
+                                          (string-join stragglers ", "))))
+                 (let ((temps (seq-difference (my/export-test--temp-dirs)
+                                              temps-before)))
+                   (when temps
+                     (my/export-test-fail "left a temp directory: %s"
+                                          (string-join temps ", ")))))
+             (error
+              (my/export-test-fail "export signalled: %S" err)))))
 
-          ;; The redirect must be in place *after* ox-typst loads, not merely
-          ;; promised before it: `with-eval-after-load' fires on first use.
-          (with-current-buffer (find-file-noselect src)
-            (condition-case err
-                (progn
-                  ;; The exporter announces the PDF to the echo area, which is
-                  ;; right interactively and noise in a check.
-                  (let ((inhibit-message t))
-                    (org-typst-export-to-pdf))
-                  (unless (file-exists-p pdf)
-                    (my/export-test-fail "no PDF beside the source: %s" pdf))
-                  (let ((stragglers (my/export-test--typ-files work)))
-                    (when stragglers
-                      (my/export-test-fail "left .typ behind: %s"
-                                           (string-join stragglers ", "))))
-                  (let ((temps (seq-difference (my/export-test--temp-dirs)
-                                               temps-before)))
-                    (when temps
-                      (my/export-test-fail "left a temp directory: %s"
-                                           (string-join temps ", ")))))
-              (error
-               (my/export-test-fail "export signalled: %S" err)))
-            (set-buffer-modified-p nil)
-            (kill-buffer))))
+        ;; ---- 2. Hebrew is handed over with an explicit direction ---------
+        (let ((he (expand-file-name "hebrew.org" work)))
+          (copy-file (expand-file-name "test/export/fixtures/08-hebrew-rtl.org" root) he t)
+          ;; The fixture names its own language so that the exporter-level check
+          ;; (no profile loaded) can exercise the RTL branch. Here the profile's
+          ;; default must be the thing that decides, so the keyword is removed:
+          ;; otherwise this test would keep passing after the profile setting was
+          ;; deleted.
+          (with-temp-file he
+            (insert (replace-regexp-in-string "^#\\+LANGUAGE:.*\n" ""
+                                              (with-temp-buffer
+                                                (insert-file-contents he)
+                                                (buffer-string)))))
+          (my/export-test--with-file
+           he
+           (lambda ()
+             (condition-case err
+                 (progn
+                   (org-typst-export-as-typst)
+                   (with-current-buffer org-typst-export-buffer-name
+                     (unless (string-match-p "#set text(lang: \"he\", dir: rtl)"
+                                             (buffer-string))
+                       (my/export-test-fail
+                        "Hebrew export is not told dir: rtl: a numbered heading would sit at the left margin"))))
+               (error
+                (my/export-test-fail "typst generation signalled: %S" err)))))))
 
-    (delete-directory work t)
-    ;; A fixture that failed early still must not poison the next run.
+    ;; A fixture that failed early must not poison the next run.
     (dolist (dir (seq-difference (my/export-test--temp-dirs) temps-before))
-      (ignore-errors (delete-directory dir t))))
+      (ignore-errors (delete-directory dir t)))
+    (delete-directory work t))
 
   (if my/export-test--failures
       (progn
         (dolist (line (nreverse my/export-test--failures))
           (princ (concat "FAIL export: " line "\n") #'external-debugging-output))
         (kill-emacs 1))
-    (princ "ok   export in profile: PDF beside the source, no .typ, temp cleaned\n"
+    (princ "ok   export in profile: one RTL PDF beside the source, no strays\n"
            #'external-debugging-output)))

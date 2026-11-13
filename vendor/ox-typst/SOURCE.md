@@ -20,7 +20,7 @@ vendor (stage 4: magit, eglot dependencies, vterm).
 ## Local patch
 
 Both the MELPA snapshot and upstream master reject material from this
-repository's corpus. The vendored copy carries three small fixes on top, and
+repository's corpus. The vendored copy carries four small fixes on top, and
 the fixtures in `test/export/fixtures/` fail closed if a re-vendor drops one.
 
 1. **Escape `[` and `]`** in `org-typst-plain-text`. The escape list skipped
@@ -32,10 +32,21 @@ the fixtures in `test/export/fixtures/` fail closed if a re-vendor drops one.
 3. **Clamp the heading level with `(max 1 level)`.** When every heading in a
    document starts below level 1, the generated Footnotes heading gets relative
    level 0, which typst rejects with `number must be positive`.
+4. **Set `dir: rtl` when the language is right-to-left.** Typst infers
+   direction from the first strong character, so Hebrew body text already
+   aligns right — but a numbered heading begins with a Latin digit, reads
+   left-to-right, and lands at the left margin. Emitting
+   `#set text(lang: "he", dir: rtl)` for RTL languages keeps a heading on the
+   same side as the text under it. The hebrew profile sets
+   `org-export-default-language` to `he`; `test/export/fixtures/08-hebrew-rtl.org`
+   carries `#+LANGUAGE: he` so the exporter-level check can exercise it.
 
 A patch for upstream is kept as `upstream.patch` in this directory and was sent
-as https://github.com/jmpunkt/ox-typst/pull/62. If upstream merges it, the next
-re-vendor drops the local patch and the fixtures prove it.
+as https://github.com/jmpunkt/ox-typst/pull/62. Apply it to a clean clone with
+`patch -p1`; it reproduces the vendored file byte-for-byte apart from the
+version header, and that can be verified with
+`diff <(grep -v '^;; Package-\(Version\|Revision\):' ...)`. If upstream
+merges it, the next re-vendor drops the local patch and the fixtures prove it.
 
 ## Updating
 
