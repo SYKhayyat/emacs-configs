@@ -3,3 +3,6 @@ packages.el
 autoload.el
 core.el
 files.el
+prose.el
+footnotes.el
+export.el

@@ -1,0 +1,26 @@
+#+TITLE: export — English documents, one PDF beside the source
+#+PROPERTY: header-args:emacs-lisp :tangle ./export.el
+#+PROPERTY: header-args+: :results none
+
+* What is left in this profile
+
+The export machinery — one PDF beside the source, notes put in reading order on
+a staged copy, heading depth, the redirect of =org-typst-export-to-pdf= — is
+shared and lives in =base/export.org=. What is not shared is the language:
+=org-export-default-language= decides hyphenation and, with the vendored patch,
+whether Typst is told =dir: rtl=. English gets neither: =en= hyphenates English
+and the vendored patch only sets =dir: rtl= for the languages in
+=org-typst-rtl-languages=.
+
+* Priced
+
+0 ms: one variable assignment, read by the exporter when it runs.
+
+#+begin_src emacs-lisp
+;; -*- lexical-binding: t; -*-
+
+;; The document language, not the keyboard layout. Stated rather than inherited
+;; from Emacs's default, so that a change of default cannot silently change the
+;; hyphenation of every note written from here.
+(setq org-export-default-language "en")
+#+end_src

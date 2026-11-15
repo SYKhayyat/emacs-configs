@@ -7,6 +7,16 @@
 ;; The cookie on line 1 is mandatory: without it Emacs prints a
 ;; "Missing ‘lexical-binding’ cookie" warning, which is exactly the sort of
 ;; unexplained output that makes a test worthless.
+;;
+;; Input is not the configuration. On this machine wheel and touch events reach
+;; the private Xvfb frame from outside Emacs about one run in four — measured:
+;; `mwheel-scroll' on *scratch* at point 1, which prints "Beginning of buffer",
+;; "End of buffer" when someone scrolls the frame. A check that failed on that
+;; was failing on the machine's pointer, not on the configuration, and it hid
+;; the fault it exists to find. So the messages log is attributed: what the
+;; configuration printed is the log as it stood at the moment the first command
+;; ran; anything after that arrived because a key, a wheel or a touch was
+;; delivered, and is recorded but not judged.
 
 (defconst my-probe-wait (string-to-number (or (getenv "MY_PROBE_WAIT") "6.0"))
   "Seconds after which to sample even if the deferred modes have not started.
@@ -14,6 +24,26 @@ Sampling waits for them (see below), so this is a deadline, not a delay.")
 
 (defconst my-probe-out (or (getenv "MY_PROBE_OUT") "/tmp/gui-probe.txt")
   "File to write the sample to.")
+
+(defun my-probe-messages-string ()
+  "The `*Messages*' log as a string, or an empty string."
+  (if (get-buffer "*Messages*")
+      (with-current-buffer "*Messages*" (buffer-string))
+    ""))
+
+(defvar my-probe-first-command nil
+  "Non-nil once a command has run, i.e. once input has been delivered.")
+
+(defvar my-probe-config-messages nil
+  "The messages log at the first command; nil while no input has arrived.")
+
+(defun my-probe-note-command ()
+  "Record the messages log the moment the first command runs."
+  (unless my-probe-first-command
+    (setq my-probe-first-command t)
+    (setq my-probe-config-messages (my-probe-messages-string))))
+
+(add-hook 'pre-command-hook #'my-probe-note-command)
 
 (defun my/probe-modes-ready-p ()
   "Non-nil when the three modes deferred to a timer are all on."
@@ -33,14 +63,18 @@ Sampling waits for them (see below), so this is a deadline, not a delay.")
                     (and (bound-and-true-p delete-selection-mode) t)
                     (and (bound-and-true-p global-so-long-mode) t)
                     (and (bound-and-true-p which-key-mode) t)))
-    (insert (format "init=%s\n" (emacs-init-time))))
+    (insert (format "init=%s\n" (emacs-init-time)))
+    ;; Whether input arrived, so bin/check.sh can say which claim it checked.
+    (insert (format "input=%s\n" (if my-probe-first-command "yes" "no"))))
   ;; `message' output in a GUI session goes to the echo area, not to stderr,
   ;; so stderr alone cannot prove a GUI run was silent. The messages log is
   ;; the only place that sees it.
   (with-temp-file (concat my-probe-out ".messages")
-    (insert (if (get-buffer "*Messages*")
-                (with-current-buffer "*Messages*" (buffer-string))
-              "")))
+    (insert (my-probe-messages-string)))
+  ;; The log up to the first input event: this is the configuration's own
+  ;; output, and the only part of it that bin/check.sh judges.
+  (with-temp-file (concat my-probe-out ".messages.config")
+    (insert (or my-probe-config-messages (my-probe-messages-string))))
   (kill-emacs))
 
 (defun my/probe-await-modes (deadline)

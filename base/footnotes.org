@@ -5,14 +5,14 @@
 * The decision
 
 A footnote typed in an org buffer belongs in a =* Footnotes= section at the
-**end of the file**, not inline in the paragraph where it is referenced. That is
-how these seforim are already written: one place to read the notes from, one
-place to export them from, and no prose broken up by commentary.
+**end of the file**, not inline in the paragraph where it is referenced. Both
+prose profiles write that way: one place to read the notes from, one place to
+export them from, and no prose broken up by commentary.
 
 Org does that by default, which is the reason it is worth pinning: three
 variables decide it, all of them defaults nobody in this repository chose. A
 package or a future org could move the definitions inline and nothing here would
-notice until a sefer came out wrong.
+notice until a document came out wrong.
 
 * What is deliberately not enabled
 
@@ -23,13 +23,13 @@ numbers on the page. It is off because of what it costs: measured **863 ms** to
 insert one footnote in the 407 KB sefer, against 36 ms to open the same file.
 The same adjustment on demand, =M-x org-footnote-normalize=, costs **453 ms**
 and moves hand-typed inline notes (=[fn::text]=, =[fn:name: text]=) to the
-bottom. Run it before exporting a file whose notes were typed inline; do not put
-it on a save hook.
+bottom. The export runs it on a staged copy (see =export.org=); do not put it on
+a save hook.
 
 * Priced
 
 No measurable startup cost: three variable assignments, applied when org loads,
-which the reading module already preloads once per session.
+which =prose.org= already preloads once per session.
 
 #+begin_src emacs-lisp
 ;; -*- lexical-binding: t; -*-

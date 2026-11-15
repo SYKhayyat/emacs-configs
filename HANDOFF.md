@@ -1,7 +1,8 @@
 # Handoff
 
-State of this repository at commit `389f807`, written so the next session does
-not have to rediscover any of it.
+State of this repository after stage 3, written so the next session does not
+have to rediscover any of it. `git log` is the commit list; where this file and
+the tree disagree, the tree is right.
 
 ## What this is
 
@@ -12,7 +13,7 @@ shared base, inside a single repo, with no Nix and no network at load time. A
 | profile | for | state |
 |---|---|---|
 | `hebrew` | Hebrew org writing and reading, one PDF export path | usable; reading, export, footnotes done |
-| `notes` | English writing and reading | base only |
+| `notes` | English writing and reading | usable; writing, reading, export, footnotes done |
 | `ide` | Rust/TS/JS/Python/Java/Common Lisp | base only |
 
 **Governing rule:** as fast as it can be while still usable. Cosmetic work —
@@ -31,9 +32,10 @@ while an earlier one is unfinished.
    work (cursor direction, RTL movement, centred column) is the open part.
    **In progress** (comtai #1).
 3. **English notes** (`notes`) — English writing and reading, footnotes, basic
-   headings and lists, one export path. **Not started** (comtai #2). The
-   footnote settings currently live in the hebrew profile and move to the shared
-   base here, once two profiles want them.
+   headings and lists, one export path. **Built and checked** (comtai #2); the
+   cross-platform run is the one thing outstanding. The footnote settings, the
+   export machinery and the prose performance policy now live in the base,
+   because two profiles want them (see "What stage 3 moved" below).
 4. **IDE** (`ide`) — Rust/TS/JS/Python/Java/Common Lisp, faster and lighter than
    Kate or Zed. **Not started** (comtai #3).
 5. **Triage of the old config** (`emacs-config-deprecated`) — go through it
@@ -49,6 +51,9 @@ bin/check.sh                 the whole proof: build, 3 profiles batch + GUI, exp
 bin/launch.sh                daemon-first launcher; bin/emacs-<profile> are thin wrappers
 bin/check-export.sh          fixtures -> PDF through the vendored ox-typst
 base/MANIFEST                load order for the shared base
+base/prose.el                colour off, footnote face, org preloaded (both prose profiles)
+base/footnotes.el            notes at the bottom of the file (both prose profiles)
+base/export.el               one PDF beside the source, notes ordered, depth 10
 configs/<p>/modules/MANIFEST load order per profile
 vendor/ox-typst/             vendored exporter, its local patch and SOURCE.md
 vendor/olivetti/             vendored centred column, SOURCE.md, no patch needed
@@ -128,6 +133,43 @@ Not verified: any macOS or Windows run (comtai #5), and one unexplained
 real measurements run on headless `sway`, because the user is on Wayland and X
 numbers do not transfer.
 
+## What stage 3 moved, and what it measured
+
+Stage 3 is the `notes` profile, and building it exposed that most of what the
+hebrew profile owned was not Hebrew at all. The rule the repository had already
+written down — a setting moves to the base once two profiles want it — was
+applied to three things:
+
+| was | now | why it is shared |
+|---|---|---|
+| `hebrew/modules/footnotes.org` | `base/footnotes.org` | both prose profiles want notes at the bottom of the file |
+| `hebrew/modules/reading.org` | `base/prose.org` | colour off and org preloaded are prose decisions, not Hebrew ones; the org preload is guarded so the ide profile does not pay 2.1 s of background CPU for a format it does not use |
+| the machinery in `hebrew/modules/export.org` | `base/export.org` | one export path for both: PDF beside the source, notes ordered on a staged copy, depth 10, the redirect of `org-typst-export-to-pdf` |
+
+What stayed in the profiles is one line each: the language.
+`configs/hebrew/modules/export.org` sets `he` (and carries the RTL rationale),
+`configs/notes/modules/export.org` sets `en`. The machinery is otherwise
+identical, so a fix to the staging or the ordering cannot drift between them,
+and `bin/check.sh` runs the export tests against both profiles.
+
+Measured on a 400 KB English org file, real frame, for the colour decision
+(the user chose colour off, matching hebrew): font-lock off scrolls a line in
+**3.33 ms** and a keystroke in **3.89 ms**; font-lock on is **3.22 ms** and
+**4.72 ms**, with **64 ms** to fontify the whole buffer. So colour on English
+prose is nearly free — the 3,473 ms figure belongs to org's footnote face
+scanning back to a heading that does not exist in a sefer, not to font-lock.
+Colour is off anyway, by the governing rule, and that is one line to reverse.
+
+One defect found and fixed while exercising the profile: an org footnote
+definition with no text makes `ox-typst` signal `wrong-type-argument (arrayp
+nil)` — it passes nil contents to `org-trim`. The export now refuses it first,
+naming the note: "Footnote 1 has no text; type it or delete it before
+exporting". The check is a 3 ms line scan on the 340 KB sefer, and
+`test/export-in-profile.el` fails if the crash comes back (verified by
+disabling the guard). The underlying bug is upstream; it is not patched in
+`vendor/ox-typst/` because a fifth local patch needs a re-vendor to regenerate
+`upstream.patch`, and the refusal is the better behaviour either way.
+
 ## The three requests from the end of stage 1
 
 Three were asked; the third is now done (see the buffer entries above). The two
@@ -186,17 +228,26 @@ fixtures prove it — `bin/check-export.sh` is what catches a lost patch.
 ## Task list
 
 `comtai ls` is the live list; the branch is the scope. #1–#4 are the five
-stages, #5 first run on Windows/macOS, #6 the `End of buffer` mystery. Commit
-messages say `refs comtai#1` — do **not** write `closes` for a stage task until
-the stage is actually finished; that mistake was made once and had to be
+stages, #5 first run on Windows/macOS. #6, the `End of buffer` mystery, is
+solved: wheel and touch events reach the private Xvfb frame from outside Emacs
+about one run in four, `mwheel-scroll` at the top of `*scratch*` prints the
+message, and nothing in the configuration was involved. `test/probe.el` now
+records the messages log as it stood at the first input event and
+`bin/check.sh` judges only that part, so the machine's pointer can no longer
+fail the check while an injected startup `message` still does (verified both
+ways: 20 runs clean, and an injected line is still caught).
+
+Commit messages say `refs comtai#1` — do **not** write `closes` for a stage task
+until the stage is actually finished; that mistake was made once and had to be
 reopened.
 
 ## Order of work from here
 
-1. Finish stage 2: the buffer work (RTL, wrapping, cursor, centred column) is
-   in and checked. What remains is unbounded heading and list depth if anything
-   caps them, and the first Windows/macOS run.
-2. Stage 3 `emacs-notes`.
-3. Stage 4 `emacs-ide`.
-4. Stage 5: old-config triage, bit by bit, each item priced.
-5. First run on Windows/macOS before calling any stage finished.
+1. Stage 4 `emacs-ide`. Stage 2 and stage 3 are otherwise finished: both are
+   checked on Linux, and both await the first Windows/macOS run.
+2. Stage 5: old-config triage, bit by bit, each item priced.
+3. First run on Windows/macOS before calling any stage finished — it is now
+   owed for two stages.
+4. Decide whether the ide profile wants colour back (=base/prose.el= turns
+   font-lock off for every profile, deliberately, with a one-line override
+   waiting for stage 4).

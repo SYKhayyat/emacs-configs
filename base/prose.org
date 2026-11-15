@@ -1,0 +1,90 @@
+#+TITLE: prose — colour off, and org ready before the first file
+#+PROPERTY: header-args:emacs-lisp :tangle ./prose.el
+#+PROPERTY: header-args+: :results none
+
+* Why this is shared
+
+Both prose profiles want the same two things, and neither is Hebrew-specific:
+colour off, because it buys nothing while scrolling and costs seconds on some
+files; and org loaded before the first org file is opened, because the first
+buffer otherwise pays for org's module chain.
+
+* Colour off, everywhere
+
+Not a size threshold: a threshold would make the same file look different
+depending on where it was opened from, and the saving never depends on the
+threshold anyway — font-lock is the same price per screen at any size. Measured
+on a 400 KB sefer: scrolling a screen costs 16–19 ms with colour on and 16.2 ms
+with it off.
+
+The whole-buffer number is the one that looks alarming and is not font-lock
+being slow in general. On a 400 KB English note, fontifying the entire buffer
+costs **64 ms**. On the transcribed sefer it cost **3,473 ms**, because org
+asks, for every footnote, which heading encloses it, by scanning backwards to
+the previous one — and in a sefer with 230 footnotes and no headings that scan
+reaches the top of the file, 230 times.
+
+The verification that the two are the same thing: strip the footnote face and
+the same buffer drops from 3,473 ms to 106 ms; add a heading every fifty lines
+and it drops to 156 ms. So the footnote face is removed here as well, which is
+insurance rather than policy — colour is off, and this only matters in a buffer
+where someone turned it back on by hand.
+
+* Org before the first org file
+
+This part belongs to the two prose profiles only. The base is loaded by every
+profile, and spending 2.1 s of background CPU to make org ready for a profile
+that edits code is a cost with no return, so the timer is started only when the
+profile is one that reads and writes org: =hebrew= and =notes=.
+
+Org loads its own modules on the first org buffer: **2,109 ms** measured, and
+the first file opened through the daemon pays it. Entering org once on a short
+timer moves that work into the background, where it overlaps with the second or
+so a person spends choosing a file, instead of sitting in front of the buffer.
+
+A plain timer, not an idle timer: an idle timer stops when Emacs is busy, and a
+daemon with no clients is not always reported as idle. Entering =org-mode= is
+what loads the chain — =require= alone leaves =org-load-modules-maybe= to run on
+the first real file, which is the cost being moved. Verified: =(featurep 'org)=
+was already t and the first open still took 2.5 s.
+
+* Priced
+
+0 ms at startup: one minor mode turned off, two hook functions, one timer. The
+footnote-face hook does one regexp search per org buffer, on a list of ~30
+entries.
+
+* What is given up, exactly
+
+Colour, and nothing else. Folding, headings, tables, links, TODO states, search
+and export all work. Footnotes keep being recognised, still jump with =C-c C-c=,
+and the exporter still finds all of them — verified on the sefer: 115 references
+parsed with the face removed.
+
+The ide profile is expected to want colour back for code; that is a one-line
+override in its own modules, and it is stage 4's decision, not this file's.
+
+#+begin_src emacs-lisp
+;; -*- lexical-binding: t; -*-
+(defvar my/profile)       ; bound by the profile bootstrap
+
+(global-font-lock-mode -1)
+
+(defun my/org-drop-footnote-highlighting ()
+  "Remove org's footnote font-lock keyword from the current buffer.
+Font-lock being off already avoids it; this is for a buffer where it was
+turned back on by hand, where the cost is seconds rather than milliseconds."
+  (setq-local org-font-lock-keywords
+              (seq-remove (lambda (kw)
+                            (string-match-p "org-activate-footnote-links"
+                                            (format "%S" kw)))
+                          org-font-lock-keywords)))
+
+(add-hook 'org-mode-hook #'my/org-drop-footnote-highlighting)
+
+(when (memq my/profile '(hebrew notes))
+  (run-with-timer
+   0.2 nil
+   (lambda ()
+     (ignore-errors (with-temp-buffer (delay-mode-hooks (org-mode)))))))
+#+end_src

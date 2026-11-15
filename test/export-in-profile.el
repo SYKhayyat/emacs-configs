@@ -75,30 +75,52 @@
              (error
               (my/export-test-fail "export signalled: %S" err)))))
 
-        ;; ---- 2. Hebrew is handed over with an explicit direction ---------
-        (let ((he (expand-file-name "hebrew.org" work)))
-          (copy-file (expand-file-name "test/export/fixtures/08-hebrew-rtl.org" root) he t)
-          ;; The fixture names its own language so that the exporter-level check
-          ;; (no profile loaded) can exercise the RTL branch. Here the profile's
-          ;; default must be the thing that decides, so the keyword is removed:
-          ;; otherwise this test would keep passing after the profile setting was
-          ;; deleted.
-          (with-temp-file he
-            (insert (replace-regexp-in-string "^#\\+LANGUAGE:.*\n" ""
-                                              (with-temp-buffer
-                                                (insert-file-contents he)
-                                                (buffer-string)))))
+        ;; ---- 2. the profile's language, and with it the direction -------
+        ;; Hebrew must reach Typst with dir: rtl — a numbered heading starts
+        ;; with a Latin digit, which would otherwise put it at the left margin
+        ;; while the text under it sits at the right. English must reach it
+        ;; without one.
+        (let* ((hebrew-p (eq my/profile 'hebrew))
+               (doc (expand-file-name (if hebrew-p "hebrew.org" "english.org") work)))
+          (if hebrew-p
+              (progn
+                (copy-file (expand-file-name "test/export/fixtures/08-hebrew-rtl.org" root)
+                           doc t)
+                ;; The fixture names its own language so that the exporter-level
+                ;; check (no profile loaded) can exercise the RTL branch. Here
+                ;; the profile's default must decide, so the keyword goes:
+                ;; otherwise this test would keep passing after the profile
+                ;; setting was deleted.
+                (with-temp-file doc
+                  (insert (replace-regexp-in-string "^#\\+LANGUAGE:.*\n" ""
+                                                    (with-temp-buffer
+                                                      (insert-file-contents doc)
+                                                      (buffer-string))))))
+            (with-temp-file doc
+              (insert "#+TITLE: English notes\n"
+                      "some English prose with a note[fn:1].\n\n"
+                      "[fn:1] the note\n")))
           (my/export-test--with-file
-           he
+           doc
            (lambda ()
              (condition-case err
                  (progn
                    (org-typst-export-as-typst)
                    (with-current-buffer org-typst-export-buffer-name
-                     (unless (string-match-p "#set text(lang: \"he\", dir: rtl)"
-                                             (buffer-string))
-                       (my/export-test-fail
-                        "Hebrew export is not told dir: rtl: a numbered heading would sit at the left margin"))))
+                     (let ((typed (buffer-string)))
+                       (if hebrew-p
+                           (unless (string-match-p
+                                    "#set text(lang: \"he\", dir: rtl)" typed)
+                             (my/export-test-fail
+                              "Hebrew export is not told dir: rtl: a numbered heading would sit at the left margin"))
+                         (unless (string-match-p "#set text(lang: \"en\")" typed)
+                           (my/export-test-fail
+                            "English export is not told lang: en: %S"
+                            (and (string-match "#set text([^)]*)" typed)
+                                 (match-string 0 typed))))
+                         (when (string-match-p "dir: rtl" typed)
+                           (my/export-test-fail
+                            "English export was told dir: rtl, so its paragraphs will lay out right-to-left"))))))
                (error
                 (my/export-test-fail "typst generation signalled: %S" err)))))))
 
@@ -164,6 +186,27 @@
                (error
                 (my/export-test-fail "deep-heading typst signalled: %S" err))))))
 
+        ;; ---- 5. an empty note is refused with a message, not a crash ----
+        ;; ox-typst passes nil contents to org-trim for a definition with no
+        ;; text and signals `wrong-type-argument (arrayp nil)'; what a person
+        ;; sees must name the note instead.
+        (let ((blank (expand-file-name "emptynote.org" work)))
+          (with-temp-file blank
+            (insert "#+TITLE: Empty note\n\n* H\ntext with a note[fn:1].\n\n[fn:1]\n"))
+          (my/export-test--with-file
+           blank
+           (lambda ()
+             (condition-case err
+                 (progn
+                   (let ((inhibit-message t)) (org-typst-export-to-pdf))
+                   (my/export-test-fail "an empty footnote exported instead of being refused"))
+               (user-error
+                (unless (string-match-p "Footnote 1 has no text" (error-message-string err))
+                  (my/export-test-fail "the refusal does not say which note is empty: %S" err)))
+               (error
+                (my/export-test-fail
+                 "an empty note signalled %S instead of being refused" err))))))
+
     ;; A fixture that failed early must not poison the next run.
     (dolist (dir (seq-difference (my/export-test--temp-dirs) temps-before))
       (ignore-errors (delete-directory dir t)))
@@ -174,5 +217,6 @@
         (dolist (line (nreverse my/export-test--failures))
           (princ (concat "FAIL export: " line "\n") #'external-debugging-output))
         (kill-emacs 1))
-    (princ "ok   export in profile: one RTL PDF beside the source, no strays\n"
+    (princ (format "ok   export in profile: one PDF beside the source, no strays (%s)\n"
+                 (if (eq my/profile (quote hebrew)) "RTL, dir set" "LTR, no dir"))
            #'external-debugging-output)))

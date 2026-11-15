@@ -36,6 +36,8 @@
     ;; RTL fix went missing: the base forced LTR and nothing overrode it.
     (bidi-paragraph-direction . nil)
     (word-wrap . t)                       ; C15
+    ;; Both prose profiles number every heading level; see base/export.org.
+    (org-export-headline-levels . 10)
     (package-directory-list . nil))       ; determinism
   "Settings that stage 1 agreed on, as (variable . expected default value).")
 
@@ -76,12 +78,41 @@
                     (car pair) (cdr pair) (and (boundp (car pair))
                                                (symbol-value (car pair))))
             bad)))
-  ;; A profile that promises footnote definitions at the bottom of the file has
-  ;; that promise checked, not assumed: a new note must land in a "* Footnotes"
-  ;; section after everything else, and inline definitions must not be created.
-  ;; Only the hebrew profile promises it; the notes profile joins in stage 3.
+  ;; Footnote policy is base policy now: both prose profiles promise that a new
+  ;; note lands in a "* Footnotes" section after everything else, and that no
+  ;; inline definition is created. Checked, not assumed, and checked in every
+  ;; profile that carries the base — the hebrew and notes modules that used to
+  ;; own it are gone.
+  (require 'org)
+  (let ((where (with-temp-buffer
+                 (insert "* heading\nsome text with a note")
+                 (org-mode)
+                 (goto-char (point-max))
+                 ;; org announces where it put point; a check must be silent.
+                 (let ((inhibit-message t)) (org-footnote-action))
+                 (buffer-string))))
+    (unless (string-match-p "\\(?:^\\|\\n\\)\\* Footnotes\\s-*$" where)
+      (push (format "  a new footnote did not land in a bottom Footnotes section: %S"
+                    where)
+            bad)))
+  (unless (eq (default-value 'org-footnote-define-inline) nil)
+    (push (format "  %-38s want nil, got %S"
+                  'org-footnote-define-inline
+                  (default-value 'org-footnote-define-inline))
+          bad))
+  ;; The export language is the profile's own: Hebrew documents are handed to
+  ;; Typst right-to-left, English ones are not.
+  (when (memq my/profile '(hebrew notes))
+    (let ((want (if (eq my/profile 'hebrew) "he" "en")))
+      (unless (equal (and (boundp 'org-export-default-language)
+                          (default-value 'org-export-default-language))
+                     want)
+        (push (format "  org-export-default-language is %S, want %S"
+                      (and (boundp 'org-export-default-language)
+                           (default-value 'org-export-default-language))
+                      want)
+              bad))))
   (when (eq my/profile 'hebrew)
-    (require 'org)
     ;; The RTL fix and the reading room are the two things this profile adds to
     ;; the shared base; each is checked as reached, not as written.
     (unless (fboundp 'olivetti-mode)
@@ -110,23 +141,7 @@
     (unless (eq (key-binding (kbd "C-c w")) #'my/toggle-reading-room)
       (push (format "  C-c w is %S, not the reading room"
                     (key-binding (kbd "C-c w")))
-            bad))
-    (unless (eq (default-value 'org-footnote-define-inline) nil)
-      (push (format "  %-38s want nil, got %S"
-                    'org-footnote-define-inline
-                    (default-value 'org-footnote-define-inline))
-            bad))
-    (let ((where (with-temp-buffer
-                   (insert "* heading\nsome text with a note")
-                   (org-mode)
-                   (goto-char (point-max))
-                   ;; org announces where it put point; a check must be silent.
-                   (let ((inhibit-message t)) (org-footnote-action))
-                   (buffer-string))))
-      (unless (string-match-p "\\(?:^\\|\\n\\)\\* Footnotes\\s-*$" where)
-        (push (format "  a new footnote did not land in a bottom Footnotes section: %S"
-                      where)
-              bad))))
+            bad)))
   ;; Paths must stay inside this checkout.
   (unless (string-prefix-p my/repo-root custom-file)
     (push (format "  custom-file outside the repo: %s" custom-file) bad))

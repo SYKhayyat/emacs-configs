@@ -66,14 +66,23 @@ if command -v Xvfb >/dev/null 2>&1; then
     # `message' output in a GUI session goes to the echo area, never to stderr,
     # so stderr silence alone proved nothing: an injected (message "noise")
     # passed this check. The messages log is the only witness.
+    #
+    # Which part of it is judged: the log as it stood at the first input event,
+    # which is the configuration's own output. Wheel and touch events reach the
+    # private frame from outside Emacs on this machine about one run in four,
+    # and `mwheel-scroll' at the top of *scratch* prints "Beginning of buffer";
+    # that is the machine's pointer, not the configuration, and it used to fail
+    # this run for no reason. Everything after the first event is recorded in
+    # $sample.messages but not judged.
+    #
     # Emacs's courtesy hint is the single permitted line, because Emacs can only
     # be told to skip it by literal text in the user's init file (see
     # base/early-init.org); everything else in that log is a fault.
     left=$(grep -v '^For information about GNU Emacs and the GNU system, type C-h C-a\.$' \
-             "$sample.messages" 2>/dev/null | grep -v '^[[:space:]]*$')
+             "$sample.messages.config" 2>/dev/null | grep -v '^[[:space:]]*$')
     if [ -n "$left" ]; then
       printf '%s\n' "$left"
-      rm -f "$sample" "$sample.messages"
+      rm -f "$sample" "$sample.messages" "$sample.messages.config"
       fail "$profile: GUI session printed messages"
       continue
     fi
@@ -90,10 +99,13 @@ if command -v Xvfb >/dev/null 2>&1; then
     if [ -n "$bad" ]; then
       printf '%s\n' "$(cat "$sample")"
       fail "$profile: GUI sample wrong:$bad"
+    elif grep -qx 'input=yes' "$sample"; then
+      # Say so, so a run that had input is never mistaken for a clean one.
+      printf 'ok   %s (gui, input arrived; startup messages checked before it)\n' "$profile"
     else
       printf 'ok   %s (gui)\n' "$profile"
     fi
-    rm -f "$sample" "$sample.messages"
+    rm -f "$sample" "$sample.messages" "$sample.messages.config"
   done
 else
   printf 'skip gui: Xvfb not available (macOS/Windows: test by hand)\n'
@@ -110,17 +122,22 @@ else
   fail 'export: a fixture did not compile'
 fi
 
-out=$(emacs -Q --batch \
-        -l "$root/configs/hebrew/early-init.el" \
-        -l "$root/configs/hebrew/init.el" \
-        -l "$root/test/export-in-profile.el" 2>&1)
-quiet=$(printf '%s\n' "$out" | grep -v '^[[:space:]]*$' | grep -cv '^ok   export in profile:')
-if [ "$quiet" -eq 0 ] && printf '%s' "$out" | grep -q '^ok   export in profile:'; then
-  printf 'ok   export in profile: one RTL PDF, no strays\n'
-else
-  printf '%s\n' "$out"
-  fail 'export in profile: exporter left files behind or failed'
-fi
+# Both prose profiles: the machinery is shared, the language and direction are
+# not. A profile that exports one PDF with the wrong direction is a failure even
+# when the file count is right.
+for profile in hebrew notes; do
+  out=$(emacs -Q --batch \
+          -l "$root/configs/$profile/early-init.el" \
+          -l "$root/configs/$profile/init.el" \
+          -l "$root/test/export-in-profile.el" 2>&1)
+  quiet=$(printf '%s\n' "$out" | grep -v '^[[:space:]]*$' | grep -cv '^ok   export in profile:')
+  if [ "$quiet" -eq 0 ] && printf '%s' "$out" | grep -q '^ok   export in profile:'; then
+    printf 'ok   export in profile: %s, one PDF, no strays\n' "$profile"
+  else
+    printf '%s\n' "$out"
+    fail "export in profile ($profile): exporter left files behind or failed"
+  fi
+done
 
 # ---- footnote placement ---------------------------------------------------
 # A footnote that renders is not a footnote that sits at the bottom. This reads

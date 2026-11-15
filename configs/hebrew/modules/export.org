@@ -1,166 +1,35 @@
-#+TITLE: export — one path to a PDF, and only the PDF
+#+TITLE: export — Hebrew documents are handed to Typst right-to-left
 #+PROPERTY: header-args:emacs-lisp :tangle ./export.el
 #+PROPERTY: header-args+: :results none
 
-* The decision
+* What is left in this profile
 
-The exporter is =ox-typst=, one path, no second backend. Where its output goes
-was decided separately: **the PDF beside the source, the =.typ= working file in
-a temporary directory that is deleted afterwards.** A =.typ= next to a sefer is
-clutter in the corpus; a =.pdf= next to it is the thing being asked for.
+The export machinery — one PDF beside the source, notes put in reading order on
+a staged copy, heading depth, the redirect of =org-typst-export-to-pdf= — is
+shared and lives in =base/export.org=. Two things are not shared, and this file
+is both of them:
 
-The stock =C-c C-e= menu is the interface; there is no custom key. The menu's
-"Typst -> As PDF file" entry calls =org-typst-export-to-pdf=, so that function
-is what gets redirected, and the menu keeps working unchanged.
+- **The language.** =org-export-default-language= decides hyphenation and, with
+  the vendored patch, whether Typst is told =dir: rtl=.
+- **Why it matters here.** Typst infers direction from the first strong
+  character, and a numbered heading starts with a Latin digit: without
+  =dir: rtl= a numbered Hebrew heading sits at the left margin while the text
+  under it sits at the right.
+
+The patch that emits =dir: rtl= for RTL languages is one of the four carried in
+=vendor/ox-typst/upstream.patch=; =bin/check-export.sh= fails if a re-vendor
+loses it, and =test/export-in-profile.el= fails if the hebrew profile stops
+passing =#set text(lang: "he", dir: rtl)= to the exporter.
 
 * Priced
 
-Measured: =my/autoload "ox-typst"= costs **0.64 ms** (100 runs, mean), because it
-reads the autoloads card and loads none of the code. The redirect is installed
-by =with-eval-after-load=, so it costs nothing until =ox-typst= is first used —
-the export itself is the only thing that pays for the projector.
-
-* Why the working file is a temporary file *beside* the source
-
-=typst= resolves includes and images against =--root=, and refuses outright a
-source file that is not inside it: "source file must be contained in project
-root". A =.typ= in =/tmp= with =--root <the sefer's directory>= therefore cannot
-work, and =--root /tmp= would silently break every relative reference in the
-document.
-
-So the working file is a dot-prefixed temporary file *in the source directory*
-(=make-temp-file= with that directory as the prefix directory), the root is the
-source directory unchanged, and the file is deleted as soon as the PDF exists.
-What is left behind is exactly one =.pdf=.
-
-* Footnotes are put in reading order before the export
-
-Typst numbers notes by the order the *definitions* appear, not the order the
-notes are first referenced. A definitions section written out of order — one
-typed later, an inline note converted by hand, a note moved up the page —
-therefore comes out numbered backwards: the first note in the text carries the
-last number.
-
-So the export does not hand the buffer straight to the exporter. It writes the
-buffer's current, unsaved text to a dot-prefixed temporary `.org` beside the
-source, runs `org-footnote-normalize` in that copy (which renumbers and re-sorts
-the definitions into reading order), and exports from the copy. The staged file
-is deleted afterwards; the sefer is never rewritten.
-
-This is also why the export is not bound to a key: it is a whole-file operation
-with a real cost, not something to trigger by accident mid-paragraph.
-
-Measured cost of the ordering step alone: **452 ms** on the 407 KB sefer and
-**1 ms** on a 5 KB note. A subtree export skips it, since ordering is a
-whole-file operation.
-
-Heading depth: nothing caps how deep a sefer nests, in the buffer or in Typst —
-a fixture with headings 1–8 and a list 8 deep exports to PDF with every level
-present and no error. What Emacs's default =org-export-headline-levels= of 3 does
-cap is *numbering and the table of contents*: level 4 and deeper are emitted as
-=#heading(level: 4, outlined: false, numbering: none)=, so a four-deep section
-renders as a heading with no number and no line in the TOC. Measured in the PDF:
-with the default, the TOC lists H1–H3 and the four-deep headings are unnumbered;
-at 10, the same document numbers them =1.1.1.1= through =1.1.1.1.1.1.1.1= and
-lists all of them. Raising it costs one line, no measurable time and a longer
-TOC, so this profile numbers everything: a sefer that nests four or five deep
-should say so in its own numbering.
-
-This has to be a global =setq=, not a buffer-local one: the export stages a copy
-of the text in a fresh buffer, and a =setq-local= in the source buffer never
-reaches it. A file that wants a different depth can still override it with
-=#+OPTIONS: H:n=.
+0 ms: one variable assignment, read by the exporter when it runs.
 
 #+begin_src emacs-lisp
 ;; -*- lexical-binding: t; -*-
-
-;; Commands without the code: `org-typst-export-to-pdf' and friends become
-;; known here and the exporter itself loads on first use.
-(my/autoload "ox-typst")
 
 ;; The document language, not the keyboard layout: it decides hyphenation and,
 ;; with the vendored patch, whether Typst is told `dir: rtl` so that a numbered
 ;; heading in a Hebrew sefer aligns to the right margin like the text under it.
 (setq org-export-default-language "he")
-
-;; Number and list every heading level, not Emacs's three. Deeper headings are
-;; rendered either way; the default only leaves them unnumbered and out of the
-;; TOC, which is exactly the structure a sefer uses. Global on purpose: the
-;; export stages the text in a fresh buffer, where a buffer-local value is gone.
-(setq org-export-headline-levels 10)
-
-(defun my/org-footnotes-in-reference-order ()
-  "Order and renumber this buffer's footnotes in reading order.
-
-Typst numbers notes by their definition order, so a definition list that is not
-in the order the notes are first referenced produces numbers that read
-backwards.  Org's own `org-footnote-normalize' renumbers and re-sorts the
-definitions to match; this is just the promise that it runs, and that it runs on
-a copy, not on the file the user is editing."
-  (require 'org)
-  (let ((t0 (when (bound-and-true-p my/bench) (float-time))))
-    (org-footnote-normalize)
-    (when (and (bound-and-true-p my/bench) t0)
-      (message "footnotes ordered in %.0f ms" (* 1000 (- (float-time) t0))))))
-
-(defun my/org-typst-export-pdf (&optional async subtreep visible-only body-only ext-plist)
-  "Export the current Org buffer to a PDF beside it, leaving nothing else behind.
-
-Footnotes are put in reading order first, by
-`my/org-footnotes-in-reference-order', on an unsaved copy staged in the source
-directory: the PDF then numbers notes 1, 2, 3 ... in the order they are
-referenced, whatever order the definitions sit in the file, and the file itself
-is never rewritten.  The staged copy and the working Typst file are both
-deleted, so only NAME.pdf remains, next to NAME.org.
-
-SUBTREEP is passed straight through without ordering, since ordering is a
-whole-file operation."
-  (unless buffer-file-name
-    (user-error "This buffer is not visiting a file, so there is nowhere to put a PDF"))
-  (let* ((src buffer-file-name)
-         (dir (file-name-directory src))
-         (base (file-name-base src))
-         (pdf (expand-file-name (concat base ".pdf") dir))
-         ;; Beside the source: typst requires the input to be inside --root, and
-         ;; the root has to stay the source directory for relative references.
-         (typ (make-temp-file (expand-file-name ".typst-" dir) nil ".typ"))
-         (staged (unless subtreep
-                   (make-temp-file (expand-file-name ".export-" dir) nil ".org"))))
-    (unwind-protect
-        (progn
-          (if subtreep
-              (org-typst-export-as-typst async t visible-only body-only ext-plist)
-            ;; Stage the current, possibly unsaved, contents; order the notes in
-            ;; the copy; export from the copy.
-            ;; Read the text first: inside `with-temp-file' the current buffer is
-            ;; the temporary one, and point-min/max would refer to an empty file.
-            (let ((body (buffer-substring-no-properties (point-min) (point-max))))
-              (with-temp-file staged (insert body)))
-            (with-current-buffer (find-file-noselect staged)
-              (org-mode)
-              (my/org-footnotes-in-reference-order)
-              (org-typst-export-as-typst async nil visible-only body-only ext-plist)))
-          (with-current-buffer org-typst-export-buffer-name
-            (write-region (point-min) (point-max) typ nil 'silent))
-          (let ((made (org-typst-compile typ)))
-            (unless (and made (file-exists-p made))
-              (error "Typst did not produce a PDF for %s" src))
-            (rename-file made pdf t)
-            (message "Exported %s" pdf)
-            pdf))
-      ;; The staged org file gets a buffer of its own; it must not outlive the
-      ;; export, and it must never be saved back.
-      (let ((b (and staged (get-file-buffer staged))))
-        (when b
-          (with-current-buffer b (set-buffer-modified-p nil))
-          (kill-buffer b)))
-      (when (and staged (file-exists-p staged)) (delete-file staged))
-      (when (file-exists-p typ) (delete-file typ))
-      ;; typst writes NAME.pdf beside NAME.typ before it is renamed above; a
-      ;; failed run leaves that partial file, which is not a document.
-      (let ((partial (concat (file-name-sans-extension typ) ".pdf")))
-        (when (file-exists-p partial) (delete-file partial))))))
-
-(with-eval-after-load 'ox-typst
-  (advice-add 'org-typst-export-to-pdf :override #'my/org-typst-export-pdf))
 #+end_src
