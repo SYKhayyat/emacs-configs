@@ -301,6 +301,20 @@ records the messages log as it stood at the first input event and
 fail the check while an injected startup `message` still does (verified both
 ways: 20 runs clean, and an injected line is still caught).
 
+The same file's *wait* had a second way of lying, found under load average
+10–23: `MY_PROBE_WAIT` was 6 s measured from the moment the file loaded, which
+is before init runs, and the three deferred modes are reached by a 3.0 s
+wall-clock fallback that this host services late. A traced run saw only three
+polls in 3.5 s, then all three modes on at +3.56 s — so the modes were never
+missing, the clock was short. The wait now starts at `emacs-startup-hook` and
+the deadline is 30 s, a backstop rather than the mechanism, since a healthy run
+samples the instant the modes appear. 6 of 6 GUI runs pass at load 23, and
+`bin/check.sh` is clean. Two traps for whoever edits that file: `defconst`'s
+closing paren sits on the docstring's last line, and losing it makes every
+following form part of the string, which Emacs reports as "Too many arguments"
+far away from the real line; and `emacs-startup-hook` never runs under
+`-Q --batch --eval`, so a batch probe cannot witness this behaviour at all.
+
 Commit messages say `refs comtai#1` — do **not** write `closes` for a stage task
 until the stage is actually finished; that mistake was made once and had to be
 reopened.

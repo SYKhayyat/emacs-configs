@@ -18,9 +18,25 @@
 ;; ran; anything after that arrived because a key, a wheel or a touch was
 ;; delivered, and is recorded but not judged.
 
-(defconst my-probe-wait (string-to-number (or (getenv "MY_PROBE_WAIT") "6.0"))
-  "Seconds after which to sample even if the deferred modes have not started.
-Sampling waits for them (see below), so this is a deadline, not a delay.")
+(defconst my-probe-wait (string-to-number (or (getenv "MY_PROBE_WAIT") "30.0"))
+  "Seconds after init ends to sample even if the deferred modes are still off.
+Sampling waits for them (see below), so this is a deadline, not a delay, and a
+generous one costs nothing: a healthy run samples the moment the modes appear.
+
+The period is counted from `emacs-startup-hook', not from the moment this file
+is loaded, because this file is read while init is still running and a deadline
+measured from load time is partly spent before the configuration has finished.
+
+Why 30 s, after 6 s failed on a loaded host. The modes come from
+`my/schedule-idle-modes' in `base/core.org': a 1 s idle timer plus a 3.0 s
+wall-clock fallback. Traced on a machine at load average 10-18, the fallback is
+what fires, and the poll below is serviced late as well — one traced run saw
+only three polls in 3.5 s, then the modes on at +3.56 s. So the modes are never
+missing; the clock was. A 6 s deadline failed 1 run in 4, and raising
+it to 20 s made 6 of 6 pass. Whatever else was short, it was not the config.
+
+This deadline is a backstop, not the mechanism: a run that trips it fails
+anyway, and a wider one only makes such a failure mean what it says.")
 
 (defconst my-probe-out (or (getenv "MY_PROBE_OUT") "/tmp/gui-probe.txt")
   "File to write the sample to.")
@@ -88,4 +104,26 @@ machine while proving nothing about the config."
       (my/probe-sample)
     (run-with-timer 0.1 nil #'my/probe-await-modes deadline)))
 
-(run-with-timer 0 nil #'my/probe-await-modes (+ (float-time) my-probe-wait))
+(defun my/probe-start-waiting ()
+  "Begin the wait for the deferred modes, once init is over.
+
+Counted from here, and stretched by init time: a machine that needed 2.8 s for
+init is slow enough to need more than 3 s afterwards for a wall-clock timer to
+be serviced, and a fixed deadline turned that into a failure naming the wrong
+cause."
+  (let* ((init-seconds (or (and (boundp 'emacs-init-time)
+                                (string-to-number emacs-init-time))
+                           0))
+         (budget (+ my-probe-wait init-seconds)))
+    (run-with-timer 0 nil #'my/probe-await-modes (+ (float-time) budget))))
+
+;; Armed from the startup hook, never from load time: this file is read while
+;; init is still running, so a deadline that starts here is partly spent before
+;; the configuration has finished loading.
+;;
+;; A batch run never fires `emacs-startup-hook' at all under `-Q --batch
+;; --eval' (verified), and a daemon has already finished its init, so both wait
+;; from load time and keep the old behaviour.
+(if (or noninteractive (daemonp))
+    (run-with-timer 0 nil #'my/probe-await-modes (+ (float-time) my-probe-wait))
+  (add-hook 'emacs-startup-hook #'my/probe-start-waiting))
