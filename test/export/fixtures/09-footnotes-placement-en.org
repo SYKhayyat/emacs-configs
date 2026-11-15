@@ -1,0 +1,15 @@
+#+LANGUAGE: en
+
+# The word a check looks for must not be the first word of its note: pdftotext
+# glues the note's number to that word ("1BOTTOMMARK"), and the check compares
+# letters.
+
+* First
+
+The first paragraph body with a definition note[fn:1].
+
+The second paragraph body with an inline note[fn::this is INLINEMARK, in the flow if the exporter left it there].
+
+* Footnotes
+
+[fn:1] This definition is BOTTOMMARK and belongs at the bottom of the page.

@@ -2,9 +2,11 @@
 # Launch a profile, daemon-first.
 #
 # Why a daemon: org-mode loads its own modules the first time an org buffer is
-# created. Measured on this machine: 2,109 ms for the first open, 34-44 ms for
-# every open after it. A resident daemon pays that once at startup instead of
-# once per launch, and every later file arrives through emacsclient in ~45 ms.
+# created. Measured on this machine, the 340 KB sefer: 1.47-1.54 s for the first
+# open of a session and 0.1-0.5 s for every open after it (the module chain
+# alone is ~492 ms; the rest is reading the file and setting it up). A resident
+# daemon pays that once at startup instead of once per launch, and every later
+# file arrives through emacsclient in ~45 ms.
 #
 # One implementation for all three profiles. The per-profile launchers are thin
 # wrappers, so this logic cannot drift between them.

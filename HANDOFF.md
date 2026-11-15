@@ -14,7 +14,7 @@ shared base, inside a single repo, with no Nix and no network at load time. A
 |---|---|---|
 | `hebrew` | Hebrew org writing and reading, one PDF export path | usable; reading, export, footnotes done |
 | `notes` | English writing and reading | usable; writing, reading, export, footnotes done |
-| `ide` | Rust/TS/JS/Python/Java/Common Lisp | base only |
+| `ide` | Rust/TS/JS/Python/Java/Common Lisp | base only; colour measured, grammars missing |
 
 **Governing rule:** as fast as it can be while still usable. Cosmetic work —
 syntax colouring, font choice, decoration — is off by default, and anything
@@ -89,7 +89,17 @@ listed in the `MANIFEST` beside it or `test/invariants.el` fails. A profile
 - Footnotes: definitions are pinned to a `* Footnotes` section at the bottom;
   a geometry check reads `pdftotext -bbox` coordinates and fails a note that is
   in the flow rather than at the page bottom (measured: body at 13–21% of page
-  height, notes at 89–91%).
+  height, notes at 89–91%). The check now runs in **both** prose profiles, each
+  with a fixture in its own language (`09-footnotes-placement.org` in Hebrew,
+  `09-footnotes-placement-en.org` in English): the notes profile was exporting
+  footnotes that nothing checked, and a Hebrew fixture inside an English
+  document would have passed without exercising anything. Two traps are worth
+  keeping in mind when a fixture is edited: a word looked for must not be the
+  *first* word of its note (pdftotext glues the note number to it, so
+  `BOTTOMMARK` arrives as `1BOTTOMMARK`), and only the word being looked for is
+  reversed for Hebrew, never both sides. Verified to still bite: a fixture with
+  the note word repeated near the top of the page fails with "sits at 16% down
+  the page, not at the bottom".
 - Hebrew in the buffer (stage 2, done): `bidi-paragraph-direction` is nil in
   the base for **all three profiles** — no direction is forced anywhere. The
   first character of the sefer is drawn at x=1259 of a 1260 px body instead of
@@ -128,11 +138,20 @@ listed in the `MANIFEST` beside it or `test/invariants.el` fails. A profile
   unchanged (3.4–4.4 / 5.4–7.2 / 3.2–3.7 ms). It recalculates per window on a split without
   any code of ours (60-column body: 13 columns each side in a split half, 59 in
   a full frame).
-- Cursor: nothing set, deliberately. `C-p`/`C-n` are visual by default;
-  `C-f`/`C-b` are logical by design and no variable changes that;
-  `right-char` is already visual in Hebrew. `visual-order-cursor-movement`
-  changes neither the landing position nor the price here (0.35 ms vs 0.19 ms
-  per 200 presses) and is left nil.
+- Cursor: `C-p`/`C-n` are visual by default; the arrow keys were always right
+  because `right-char` is already visual in Hebrew. What was wrong was
+  `C-f`/`C-b`, which are `forward-char`/`backward-char` — logical order, so
+  inside a Hebrew paragraph they step against the screen. The hebrew profile now
+  remaps those two commands to `right-char`/`left-char`
+  (`configs/hebrew/modules/display.org`); in left-to-right text the moves are
+  identical, so an English paragraph in a sefer is unchanged. Verified in a
+  frame: from point 2 of `אבג`, `C-f` lands on 1 — the character drawn to the
+  right — and in `abc` on 3, the logical move. `test/invariants.el` asserts the
+  hebrew binding *and* that `notes` and `ide` still have
+  `forward-char`/`backward-char`, so the remap cannot leak into a profile that
+  reads Latin only. `visual-order-cursor-movement` stays nil: it changes neither
+  the landing position nor the price (0.35 ms vs 0.19 ms per 200 presses), and
+  its docstring warns it can move point many buffer positions away.
 
 Not verified: any macOS or Windows run (comtai #5), and one unexplained
 `End of buffer` message in an ide GUI check (comtai #6). GUI checks run on Xvfb;
@@ -149,7 +168,7 @@ applied to three things:
 | was | now | why it is shared |
 |---|---|---|
 | `hebrew/modules/footnotes.org` | `base/footnotes.org` | both prose profiles want notes at the bottom of the file |
-| `hebrew/modules/reading.org` | `base/prose.org` | colour off and org preloaded are prose decisions, not Hebrew ones; the org preload is guarded so the ide profile does not pay 2.1 s of background CPU for a format it does not use |
+| `hebrew/modules/reading.org` | `base/prose.org` | colour off and org preloaded are prose decisions, not Hebrew ones; the org preload is guarded so the ide profile does not pay ~0.5 s of background CPU for a format it does not use |
 | the machinery in `hebrew/modules/export.org` | `base/export.org` | one export path for both: PDF beside the source, notes ordered on a staged copy, depth 10, the redirect of `org-typst-export-to-pdf` |
 
 What stayed in the profiles is one line each: the language.
@@ -175,6 +194,45 @@ exporting". The check is a 3 ms line scan on the 340 KB sefer, and
 disabling the guard). The underlying bug is upstream; it is not patched in
 `vendor/ox-typst/` because a fifth local patch needs a re-vendor to regenerate
 `upstream.patch`, and the refusal is the better behaviour either way.
+
+## Colour in code, priced for stage 4
+
+Stage 4 starts with a decision: `base/prose.el` turns font-lock off for every
+profile, and the ide profile would have to turn it back on for code. Rather than
+reason about it, it was measured: three real files from the user's projects, a
+real frame, colour on against off, two runs each, median of 20 operations per
+number.
+
+| file | mode | fontify whole buffer | scroll a screen | keystroke |
+|---|---|---|---|---|
+| 280 KB Rust, 6,230 lines | `rust-mode` | 1,249–1,326 ms | 13.2–16.6 on / 12.0–16.3 off | 5.3–5.5 on / 3.3–4.9 off |
+| 94 KB Rust | `rust-mode` | 521–784 ms | 11.4–12.7 / 9.6–12.3 | 4.7–5.6 / 2.6–2.8 |
+| 115 KB Python | `python-mode` | 1,970–2,432 ms | 11.9–16.3 / 16.2–24.3 | 8.2–8.5 / 3.3–5.5 |
+
+The reading of it:
+
+- **The whole-buffer number is not paid while editing.** `jit-lock-stealth-time`
+  is nil in this build, so nothing fontifies a whole file in the background;
+  the 0.5–2.4 s appears only when something insists on a fully fontified buffer.
+- **A screen of scrolling is the same either way**, inside the spread.
+- **A keystroke costs 1.5–3 ms more with colour on**, because jit-lock
+  refontifies the edited line: at worst 8.5 ms in `python-mode`, which is the
+  regexp-heaviest of the three. Under the ~10 ms where a keystroke starts to
+  feel late.
+- **The real obstacle is not speed.** No treesit grammar is installed on this
+  machine (`rust`, `typescript`, `python`, `javascript`, `c` are all nil) and
+  the config has no packages, so a `.rs` file opens in `fundamental-mode` today:
+  colour in Rust is first a dependency question (a grammar, or `rust-mode` as a
+  package), then a performance one. The numbers above were taken with
+  `rust-mode` from the old config's `elpa`, i.e. what stage 4 would install.
+
+So the answer to "does colour cost too much time?" is **no for code, yes for
+prose**. The prose numbers are the ones that justify switching it off: a
+keystroke at a footnote in the sefer cost 38.4 ms with the footnote face on, and
+fontifying the whole sefer cost 3,473 ms — while the same buffer without the
+face was 106 ms. Neither applies to a source file. Not implemented yet: colour
+for code is stage 4's one-line override, and it should be made per language
+base-mode rather than globally.
 
 ## The three requests from the end of stage 1
 
@@ -254,6 +312,8 @@ reopened.
 2. Stage 5: old-config triage, bit by bit, each item priced.
 3. First run on Windows/macOS before calling any stage finished — it is now
    owed for two stages.
-4. Decide whether the ide profile wants colour back (=base/prose.el= turns
-   font-lock off for every profile, deliberately, with a one-line override
-   waiting for stage 4).
+4. ~~Decide whether the ide profile wants colour back.~~ Measured — see "Colour
+   in code, priced for stage 4": colour costs 1.5–3 ms a keystroke and nothing
+   measurable while scrolling, so it belongs on for code and off for prose. The
+   open part is the dependency: no treesit grammar is installed, so Rust/TS
+   colour needs one (or a classic major mode package) before it can even show.

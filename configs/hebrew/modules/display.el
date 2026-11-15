@@ -62,6 +62,17 @@ already has them."
 
 (add-hook 'post-command-hook #'my/rtl-footnote-labels-follow)
 
+;; -*- lexical-binding: t; -*-
+
+;; Logical movement in a Hebrew paragraph steps against the eye: C-f moves one
+;; *character* forward, which inside RTL text is one step left on screen.
+;; right-char/left-char move in visual order, and in LTR text they are the same
+;; moves as forward-char/backward-char, so nothing changes in an English
+;; paragraph. Checked in test/invariants.el for every profile: the other two
+;; must still have the standard bindings.
+(global-set-key [remap forward-char] #'right-char)
+(global-set-key [remap backward-char] #'left-char)
+
 (my/autoload "olivetti")
 
 (setq-default olivetti-body-width 100)

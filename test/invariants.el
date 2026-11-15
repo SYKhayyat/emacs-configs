@@ -142,6 +142,18 @@
       (push (format "  C-c w is %S, not the reading room"
                     (key-binding (kbd "C-c w")))
             bad)))
+  ;; Horizontal movement follows the eye in the hebrew profile and nowhere else.
+  ;; C-f/C-b are logical moves, so in a Hebrew paragraph they step against the
+  ;; screen; the profile remaps them to right-char/left-char, which are the same
+  ;; commands in left-to-right text. Both halves are checked: the remap is in
+  ;; effect where it should be, and absent where it must not leak to.
+  (let ((want (if (eq my/profile 'hebrew)
+                  '(right-char . left-char)
+                '(forward-char . backward-char))))
+    (dolist (pair (list (cons "C-f" (car want)) (cons "C-b" (cdr want))))
+      (let ((got (key-binding (kbd (car pair)))))
+        (unless (eq got (cdr pair))
+          (push (format "  %-38s want %S, got %S" (car pair) (cdr pair) got) bad)))))
   ;; Paths must stay inside this checkout.
   (unless (string-prefix-p my/repo-root custom-file)
     (push (format "  custom-file outside the repo: %s" custom-file) bad))

@@ -176,8 +176,37 @@ forcing strict screen order in mixed text, which its docstring warns can move
 point "many buffer positions away". So it stays at its default, nil.
 
 The only way to make =C-f= itself follow the eye is to rebind it to
-=right-char=. That changes a core key in every buffer of the profile, so it is
-not done here: it is one line, and the user's call.
+=right-char=, and this profile does it. It is safe to do in a sefer: in
+left-to-right text =right-char= makes exactly the move =forward-char= makes, so
+an English paragraph in the same file is unaffected — the rebinding only changes
+where the two disagree, and they disagree only in Hebrew.
+
+The binding is global rather than =org-mode-local= because the complaint was
+never about org. It is a remap of =forward-char= rather than a bite of =C-f=,
+so a mode that gives =C-f= some other command keeps that command: the remap only
+redirects keys that would have run =forward-char=. (=isearch= does not bind
+=C-f= at all, so inside a search it inherits the remap — point still moves right
+on screen, which is what search should do.)
+
+#+begin_src emacs-lisp
+;; -*- lexical-binding: t; -*-
+
+;; Logical movement in a Hebrew paragraph steps against the eye: C-f moves one
+;; *character* forward, which inside RTL text is one step left on screen.
+;; right-char/left-char move in visual order, and in LTR text they are the same
+;; moves as forward-char/backward-char, so nothing changes in an English
+;; paragraph. Checked in test/invariants.el for every profile: the other two
+;; must still have the standard bindings.
+(global-set-key [remap forward-char] #'right-char)
+(global-set-key [remap backward-char] #'left-char)
+#+end_src
+
+Measured in a real frame, in the hebrew profile: from point 2 of =אבג= — drawn
+right-to-left, so the character to the right is buffer position 1 — =C-f= lands
+on 1 and =C-b= on 3, while in =abc= the same keys land on 3 and 1, the logical
+moves. The notes profile still has =forward-char=/=backward-char= on both keys,
+and =test/invariants.el= checks that half, so the remap cannot leak into a
+profile that reads Latin only.
 
 * The reading room
 

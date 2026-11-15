@@ -33,9 +33,9 @@ where someone turned it back on by hand.
 * Org before the first org file
 
 This part belongs to the two prose profiles only. The base is loaded by every
-profile, and spending 2.1 s of background CPU to make org ready for a profile
-that edits code is a cost with no return, so the timer is started only when the
-profile is one that reads and writes org: =hebrew= and =notes=.
+profile, and spending half a second of background CPU to make org ready for a
+profile that edits code is a cost with no return, so the timer is started only
+when the profile is one that reads and writes org: =hebrew= and =notes=.
 
 Org loads its own modules on the first org buffer, and the first file opened
 pays it. Measured on this machine, batch, entering `org-mode' in a throwaway

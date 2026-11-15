@@ -1,9 +1,12 @@
 ;;; export-footnote-placement.el --- prove notes sit at the page bottom -*- lexical-binding: t; -*-
 ;;
-;; Run with the hebrew profile loaded:
+;; Run with a prose profile loaded. Both of them, because the two profiles hand
+;; different languages to Typst and only the Hebrew side was ever checked:
 ;;
 ;;   emacs -Q --batch -l configs/hebrew/early-init.el \
 ;;                  -l configs/hebrew/init.el -l test/export-footnote-placement.el
+;;   emacs -Q --batch -l configs/notes/early-init.el \
+;;                  -l configs/notes/init.el -l test/export-footnote-placement.el
 ;;
 ;; A footnote that renders is not the same as a footnote that renders at the
 ;; bottom. Typst could just as well have put the note in the flow — and then the
@@ -27,9 +30,13 @@
 (defun my/fn-test-fail (fmt &rest args)
   (push (apply #'format fmt args) my/fn-test--failures))
 
-(defun my/fn-test--reverse (s)
-  "S as it appears inside a PDF's word stream."
-  (apply #'string (nreverse (string-to-list s))))
+(defconst my/fn-test--cases
+  '((hebrew "09-footnotes-placement.org"    "העמוד"     "מיוחדת")
+    (notes  "09-footnotes-placement-en.org" "BOTTOMMARK" "INLINEMARK"))
+  "Per profile: fixture, the word in the standard note, the word in the inline one.
+Two fixtures and not one, because the fixture has to be in the language the
+profile exports: a Hebrew note inside an English document would pass this check
+without ever exercising the direction that profile actually sets.")
 
 (defun my/fn-test--pages (bbox-file)
   "Parse pdftotext -bbox output into a list of (HEIGHT (YMIN TEXT) ...)."
@@ -56,18 +63,25 @@
             (setq pos end))))
       (nreverse pages))))
 
-(defun my/fn-test--hebrew-only (s)
-  "S reduced to its Hebrew letters, so attached punctuation cannot hide a word."
-  (replace-regexp-in-string "[^\u0590-\u05ff]" "" s))
+(defun my/fn-test--letters (s)
+  "S reduced to its letters, so attached punctuation cannot hide a word."
+  (replace-regexp-in-string "[^[:alnum:]\u0590-\u05ff]" "" s))
+
+(defun my/fn-test--visual (s)
+  "S as a word in the PDF's word stream, which pdftotext prints in visual order.
+
+For Latin text that is the order it was typed in; for Hebrew it is the reverse,
+which is why only the word being looked for is reversed here, not both sides."
+  (let ((letters (my/fn-test--letters s)))
+    (if (string-match-p "[\u0590-\u05ff]" letters)
+        (apply #'string (nreverse (string-to-list letters)))
+      letters)))
 
 (defun my/fn-test--lines-of (word page)
-  "The y coordinates where WORD occurs on PAGE.
-
-pdftotext emits words in visual order with punctuation attached, so the
-comparison is made on the Hebrew letters alone, reversed."
-  (let ((want (my/fn-test--reverse (my/fn-test--hebrew-only word))))
+  "The y coordinates where WORD occurs on PAGE."
+  (let ((want (my/fn-test--visual word)))
     (seq-keep (lambda (cell)
-                (when (string= (my/fn-test--hebrew-only (cadr cell)) want)
+                (when (equal (my/fn-test--letters (cadr cell)) want)
                   (car cell)))
               (cdr page))))
 
@@ -100,10 +114,18 @@ comparison is made on the Hebrew letters alone, reversed."
 
 (let* ((root (file-name-directory (directory-file-name
                                    (file-name-directory load-file-name))))
+       (entry (assq my/profile my/fn-test--cases))
+       (fixture (nth 1 entry))
+       (standard (nth 2 entry))
+       (inline (nth 3 entry))
        (pdftotext (executable-find "pdftotext"))
        (work (make-temp-file "my-fn-test-" t)))
   (unwind-protect
       (cond
+       ((null entry)
+        ;; A third prose profile chooses a fixture; it must not inherit one.
+        (my/fn-test-fail "no footnote fixture for profile %S; add it to my/fn-test--cases"
+                         my/profile))
        ((null pdftotext)
         (princ "skip footnote placement: pdftotext (poppler) not installed\n"
                #'external-debugging-output)
@@ -112,7 +134,7 @@ comparison is made on the Hebrew letters alone, reversed."
         (let* ((org (expand-file-name "notes.org" work))
                (pdf (expand-file-name "notes.pdf" work))
                (bbox (expand-file-name "notes.xml" work)))
-          (copy-file (expand-file-name "test/export/fixtures/09-footnotes-placement.org" root)
+          (copy-file (expand-file-name (concat "test/export/fixtures/" fixture) root)
                      org t)
           (with-current-buffer (find-file-noselect org)
             (condition-case err
@@ -125,8 +147,8 @@ comparison is made on the Hebrew letters alone, reversed."
               (if (not (eq rc 0))
                   (my/fn-test-fail "pdftotext -bbox exited %s" rc)
                 (let ((pages (my/fn-test--pages bbox)))
-                  (my/fn-test--assert-bottom pages "העמוד" "standard note")
-                  (my/fn-test--assert-bottom pages "מיוחדת" "inline note"))))))))
+                  (my/fn-test--assert-bottom pages standard "standard note")
+                  (my/fn-test--assert-bottom pages inline "inline note"))))))))
 
     (delete-directory work t))
 
@@ -135,5 +157,6 @@ comparison is made on the Hebrew letters alone, reversed."
         (dolist (line (nreverse my/fn-test--failures))
           (princ (concat "FAIL footnotes: " line "\n") #'external-debugging-output))
         (kill-emacs 1))
-    (princ "ok   footnotes: standard and inline notes land at the page bottom\n"
+    (princ (format "ok   footnotes: standard and inline notes land at the page bottom (%s)\n"
+                   my/profile)
            #'external-debugging-output)))
