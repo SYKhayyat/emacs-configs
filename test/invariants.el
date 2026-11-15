@@ -31,7 +31,11 @@
     (vc-handled-backends . (Git))         ; A6
     (read-process-output-max . 1048576)   ; A7
     (gc-cons-percentage . 0.1)            ; A1, restored
-    (bidi-paragraph-direction . left-to-right) ; A11
+    ;; A11: no direction is forced, in any profile. This used to be an
+    ;; expectation of `left-to-right' here and nil in hebrew, which is how the
+    ;; RTL fix went missing: the base forced LTR and nothing overrode it.
+    (bidi-paragraph-direction . nil)
+    (word-wrap . t)                       ; C15
     (package-directory-list . nil))       ; determinism
   "Settings that stage 1 agreed on, as (variable . expected default value).")
 
@@ -54,6 +58,15 @@
         (push (format "  %-38s want %S, got %S"
                       (car pair) (cdr pair) (symbol-value (car pair)))
               bad))))
+  ;; Wrapping is a mode, not a variable: entering a text buffer must leave it
+  ;; wrapped, not merely have a default set somewhere. org derives from
+  ;; text-mode, so this is also the org path — checked here without loading org.
+  (with-temp-buffer
+    (text-mode)
+    (unless (and visual-line-mode (null truncate-lines))
+      (push (format "  a text-mode buffer is not wrapped: visual-line-mode %S, truncate-lines %S"
+                    visual-line-mode truncate-lines)
+            bad)))
   ;; Modes started on the idle timer.
   (dolist (pair '((global-so-long-mode . t)    ; A10
                   (delete-selection-mode . t)  ; C13
@@ -69,6 +82,35 @@
   ;; Only the hebrew profile promises it; the notes profile joins in stage 3.
   (when (eq my/profile 'hebrew)
     (require 'org)
+    ;; The RTL fix and the reading room are the two things this profile adds to
+    ;; the shared base; each is checked as reached, not as written.
+    (unless (fboundp 'olivetti-mode)
+      (push "  olivetti-mode is not autoloaded: vendor/olivetti is missing or unread" bad))
+    ;; A footnote definition starts with a Latin label, so with the base's nil
+    ;; direction it is laid out left-to-right; the profile's overlays are what
+    ;; make it right-to-left. Both halves are asserted: the plain buffer is LTR
+    ;; (so this is not a check that passes on any text), and the fixed one is
+    ;; RTL (so a broken overlay fails here instead of in a sefer).
+    (let ((definition (concat "[fn:1] " "אז, קנינה יהיה או שמסתמא תבוא לה ראשון"
+                              " ואולי בצירוף שלה ניתן.\n")))
+      (with-temp-buffer
+        (insert definition)
+        (org-mode)
+        (goto-char (point-min))
+        (unless (eq (current-bidi-paragraph-direction) 'left-to-right)
+          (push (format "  a bare footnote definition is %S, so the check below proves nothing"
+                        (current-bidi-paragraph-direction))
+                bad))
+        (my/rtl-footnote-labels (point-min) (point-max))
+        (goto-char (point-min))
+        (unless (eq (current-bidi-paragraph-direction) 'right-to-left)
+          (push (format "  a footnote definition is %S with the overlays in place"
+                        (current-bidi-paragraph-direction))
+                bad))))
+    (unless (eq (key-binding (kbd "C-c w")) #'my/toggle-reading-room)
+      (push (format "  C-c w is %S, not the reading room"
+                    (key-binding (kbd "C-c w")))
+            bad))
     (unless (eq (default-value 'org-footnote-define-inline) nil)
       (push (format "  %-38s want nil, got %S"
                     'org-footnote-define-inline

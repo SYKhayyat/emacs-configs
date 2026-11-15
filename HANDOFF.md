@@ -51,6 +51,7 @@ bin/check-export.sh          fixtures -> PDF through the vendored ox-typst
 base/MANIFEST                load order for the shared base
 configs/<p>/modules/MANIFEST load order per profile
 vendor/ox-typst/             vendored exporter, its local patch and SOURCE.md
+vendor/olivetti/             vendored centred column, SOURCE.md, no patch needed
 test/invariants.el           settings that must be in effect, per profile
 test/export-*.el             export behaviour, from fixtures and from the PDF
 ```
@@ -78,37 +79,78 @@ listed in the `MANIFEST` beside it or `test/invariants.el` fails. A profile
   a geometry check reads `pdftotext -bbox` coordinates and fails a note that is
   in the flow rather than at the page bottom (measured: body at 13–21% of page
   height, notes at 89–91%).
-- Hebrew in the PDF: real glyphs, right-aligned paragraphs, notes numbered
-  ascending at the page bottom, and `dir: rtl` emitted so a numbered heading
-  sits on the right like the text under it.
+- Hebrew in the buffer (stage 2, done): `bidi-paragraph-direction` is nil in
+  the base for **all three profiles** — no direction is forced anywhere. The
+  first character of the sefer is drawn at x=1259 of a 1260 px body instead of
+  x=219. Wrapping is base policy (C15): no profile cuts long lines at the edge
+  any more. Cost on the sefer: 3.8–4.4 / 5.0–5.7 / 2.4–3.1 ms per line scroll /
+  half page / keystroke.
+- The 10× trap, measured both ways and reversible (A/B/A in one session: 43.4 /
+  4.0 / 4.2 / 4.1 ms). Forcing a direction costs nothing while the direction
+  matches the text (forced `right-to-left` on Hebrew: 4.2 ms) and costs 10×
+  when it does not: forced `left-to-right` on the wrapped sefer is
+  **43.4 / 49.7 / 17.1 ms**, and forced `right-to-left` on a wrapped 400 KB
+  English file is **63.4 / 72.0 / 89.6 ms**. `bidi-inhibit-bpa` and
+  font-lock-off controls change nothing (44.1 / 44.9 ms). With truncation on,
+  all three directions are 4.0–4.5 ms — the trap needs wrapping. Hence: never
+  force, and A11 in `base/core.org` carries the table. Reproduced twice more,
+  five interleaved rounds each with the direction order rotated per round
+  (medians): another sefer, 340 KB with 358 notes — forced `left-to-right`
+  286 ms a line against 8.1 ms, 96 against 8.0 per keystroke; the 400 KB
+  English file — forced `right-to-left` 163 ms against 3.3 ms, 90 against 4.5.
+  "10×" is the floor; it is 35× and 50× on those two.
+- Footnote definitions under nil: an org definition starts with the Latin
+  `[fn:label]`, so it is a left-to-right paragraph — label at x=7, and the
+  caret costs **38.4 ms** per character typed, because it is a wrapped Hebrew
+  paragraph the bidi base disagrees with. `configs/hebrew/modules/display.org`
+  puts a `display` overlay over each visible label (replaced text is not
+  counted when Emacs picks a paragraph's direction), which makes the definition
+  RTL: label at x=1259 of 1260, direction `right-to-left`, caret 6.8 ms — the
+  same as with no label at all. Cost of the hook: 0.032 ms per idle command,
+  0.069 ms when it rebuilds 11 overlays; scrolling unchanged (10.7 ms with and
+  without); buffer never modified; `org-export-as` output byte-identical with
+  and without the overlays. Not possible: per-paragraph direction from Lisp —
+  `bidi-paragraph-start-regexp` and `bidi-paragraph-separate-regexp` were
+  measured and change nothing (label still at x=7).
+- Reading room: `C-c w` toggles the vendored `olivetti` at 100 columns. First
+  press 12.6 ms load + 94.5 ms re-layout, later toggles ~8 ms, redisplay
+  unchanged (3.4–4.4 / 5.4–7.2 / 3.2–3.7 ms). It recalculates per window on a split without
+  any code of ours (60-column body: 13 columns each side in a split half, 59 in
+  a full frame).
+- Cursor: nothing set, deliberately. `C-p`/`C-n` are visual by default;
+  `C-f`/`C-b` are logical by design and no variable changes that;
+  `right-char` is already visual in Hebrew. `visual-order-cursor-movement`
+  changes neither the landing position nor the price here (0.35 ms vs 0.19 ms
+  per 200 presses) and is left nil.
 
 Not verified: any macOS or Windows run (comtai #5), and one unexplained
 `End of buffer` message in an ide GUI check (comtai #6). GUI checks run on Xvfb;
 real measurements run on headless `sway`, because the user is on Wayland and X
 numbers do not transfer.
 
-## The three open requests, not started
+## The three requests from the end of stage 1
 
-Asked at the end of the last session, measured only as far as the paragraph
-below:
+Three were asked; the third is now done (see the buffer entries above). The two
+remaining are measured only as far as the paragraph below:
 
 1. **Unlimited heading depth.** Untested whether org, or the exporter, actually
    stops at some depth. Nothing in the repo caps it today.
 2. **Deep list nesting.** Same: no cap written anywhere, untested in practice.
-3. **Hebrew perfection in the buffer** — cursor moving in the reading direction,
-   RTL text, and an option to put the text in the middle (centred column).
+3. ~~**Hebrew perfection in the buffer**~~ — RTL text, cursor, centred column.
+   Done: `configs/hebrew/modules/display.org`, plus C15 in `base/core.org`.
 
-Current bidi state, so the next session does not have to re-measure: the base
-sets `bidi-paragraph-direction` to `left-to-right` and **deliberately leaves
-`bidi-display-reordering` alone** (see `base/core.org`). `line-move-visual` is
-still Emacs's default and `fill-column` is still 70; both were left to the
-profiles that fill prose. Nothing is set for cursor direction, and there is no
-centred-column option — that code does not exist yet.
+Open question 3 is **done** — see the buffer entries under "Done and verified".
+The base sets `bidi-paragraph-direction` to nil for every profile (A11) and
+**deliberately leaves `bidi-display-reordering` alone**; the hebrew profile's
+`configs/hebrew/modules/display.org` owns the footnote-label fix, the cursor
+notes and the reading room. `test/invariants.el` now expects nil for all three
+profiles — the per-profile expectation is how the missing RTL fix once hid — and
+asserts, in the hebrew profile, that a footnote definition is *left*-to-right
+without the labels and `right-to-left` with them, so the check cannot pass on a
+broken hook. `fill-column` is still 70 and `line-move-visual` is still Emacs's
+default.
 
-Open question 3 needs one decision from the user before code: a centred column
-is either (`visual-fill-column` style: text wrapped at N columns and the
-margins widened, no new package), or a package such as `olivetti`. Both need a
-price quoted before they go in.
+Still open in stage 2: unlimited heading depth, and deep list nesting.
 
 ## Vendor patch and upstream
 
@@ -137,9 +179,9 @@ reopened.
 
 ## Order of work from here
 
-1. Finish stage 2: decide the centring question above, then price and implement
-   the Hebrew buffer work (cursor/RTL/centred), then unbounded heading and list
-   depth if anything caps them.
+1. Finish stage 2: the buffer work (RTL, wrapping, cursor, centred column) is
+   in and checked. What remains is unbounded heading and list depth if anything
+   caps them, and the first Windows/macOS run.
 2. Stage 3 `emacs-notes`.
 3. Stage 4 `emacs-ide`.
 4. Stage 5: old-config triage, bit by bit, each item priced.

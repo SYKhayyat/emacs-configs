@@ -88,19 +88,52 @@ the relevant =.org=.
 
 * A11 — text direction
 
-Non-nil here means "every buffer is left-to-right", which the Emacs docstring
-says *might speed up redisplay*, and which is true of everything in the shared
-base. It is a =setq-default=, so a profile may override it: the Hebrew profile
-sets nil, meaning "decide per paragraph from the first strong character",
-which is both correct for mixed text and the permanent cure for the old
-config's most damaging bug.
+nil is Emacs's own default: each paragraph is laid out from its first strong
+character. A Hebrew paragraph goes right, an English paragraph inside the same
+sefer goes left, and neither profile has to know which language it is in. This
+is a =setq-default=, and no profile overrides it.
+
+Forcing a direction is the old config's most damaging bug, and the price is not
+symbolic. Measured on a real frame on this machine, with wrapping on (C15), the
+same 43-line screen scrolled a line at a time, min of three runs:
+
+| file                | auto     | forced with the text | forced against it |
+|---------------------+----------+----------------------+-------------------|
+| 407 KB Hebrew sefer | 4.5 ms   | 4.2 ms (=right-to-left=) | **43.4 ms** (=left-to-right=) |
+| 400 KB English      | 5.1 ms   | 3.7 ms (=left-to-right=) | **63.4 ms** (=right-to-left=) |
+
+A keystroke is worse: 3.3 ms auto, 17.1 ms against on the sefer; 4.2 ms auto,
+**89.6 ms** against on the English file. The cost is the disagreement, not the
+forcing: forced =right-to-left= over Hebrew is free, and forcing either value
+over truncated text is free too (4.0–4.5 ms for all three on the sefer). It is
+the combination of a forced direction and wrapping that resolves every
+displayed line of the paragraph against a base direction the text contradicts.
+Measured controls: =bidi-inhibit-bpa= changes nothing (44.1 ms), font-lock off
+changes nothing (44.9 ms). Alternating the variable in one session reproduces
+and reverts the cost every time (43.4 / 4.0 / 4.2 / 4.1 ms).
+
+Reproduced on two files that are not the one above, five rounds each with the
+three directions rotating order every round (so no condition is always the cold
+or the hot one), medians: a 340 KB sefer with 358 footnote definitions, forced
+=left-to-right= costs **286 ms** a line against 8.1 ms auto — 35× — and 96 ms
+against 8.0 ms a keystroke; a 400 KB English file, forced =right-to-left= costs
+**163 ms** against 3.3 ms — 50× — and 90 ms against 4.5 ms. So "10×" is a
+floor, not a constant: the factor grows with the number of direction runs each
+displayed line has to resolve, and across these files and the one in the table
+it never once failed to appear.
+
+So the rule is: no direction is forced, anywhere. The consequence nil has, and
+the one thing that made the old config force =right-to-left=, is an org footnote
+definition: its =[fn:label]= starts with Latin letters, so with nil the definition
+is a left-to-right paragraph. The Hebrew profile fixes that for the label alone
+(=configs/hebrew/modules/display.org=), rather than for the whole buffer.
 
 =bidi-display-reordering= is deliberately untouched: its docstring says
 setting it to nil is for debugging and is not supported, and measurement here
 showed no gain (0.20 ms vs 0.20 ms per redraw on a 1.6 MB file).
 
 #+begin_src emacs-lisp
-(setq-default bidi-paragraph-direction 'left-to-right)
+(setq-default bidi-paragraph-direction nil)
 #+end_src
 
 * A10 — long lines
@@ -190,8 +223,37 @@ C13 (`delete-selection-mode', 16 ms to load) is started by
 `my/start-idle-modes' above, with the other modes nobody needs in the first
 second.
 
+** C15 — no line runs off the edge
+
+Org's startup default truncates long lines at the window edge
+(=org-startup-truncated= is t), and this profile set nothing to the contrary:
+measured on the 407 KB sefer, =truncate-lines= was t and every paragraph wider
+than the frame was displayed cut off at the edge. A line that cannot be
+finished is a line that did not render.
+
+=word-wrap= is set as a default because it is automatically buffer-local, so
+=setq-default= is what reaches buffers that do not exist yet; =so-long= and
+plain text buffers then break at word boundaries instead of splitting a Hebrew
+word across two lines. =visual-line-mode= is what turns that into displayed
+lines, and at the same price makes =C-a=/=C-e= act on the line the user sees.
+
+Price, on that sefer: 3.8–4.4 ms per line scrolled when wrapped, against
+4.2–4.8 ms when truncated. Wrapping is inside noise. The 41–45 ms figure that
+made wrapping look expensive belonged to the forced =left-to-right= that A11 no
+longer sets, not to wrapping: the same file with the same wrapping and no
+forced direction scrolls in 4.2 ms.
+
+This covers every buffer: text-derived modes (org among them, through
+=text-mode-hook=) get =visual-line-mode=, and nothing in this repository sets
+=truncate-lines= to t.
+
+#+begin_src emacs-lisp
+(setq-default word-wrap t)               ; C15 soft breaks land at a word boundary
+(add-hook 'text-mode-hook #'visual-line-mode)
+#+end_src
+
 **Deliberately not here.** `line-move-visual' stays at Emacs's default (visual
 movement): it belongs to the Hebrew profile, where physical line movement is
 wrong for wrapped RTL text. `fill-column' stays at 70 and belongs to the
-profiles that fill prose — together with the centred-column view, which is a
-package and therefore a profile decision.
+profiles that fill prose. The centred column is =olivetti= — a package, and so a
+profile decision (=configs/hebrew/modules/display.org=).

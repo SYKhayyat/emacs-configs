@@ -37,7 +37,7 @@
   (error (message "custom-file ignored (%s): %s"
                   (error-message-string err) custom-file)))
 
-(setq-default bidi-paragraph-direction 'left-to-right)
+(setq-default bidi-paragraph-direction nil)
 
 (defvar my/idle-modes-started nil
   "Non-nil once the deferred modes have been started.")
@@ -90,3 +90,6 @@ postponed that way. Either one may win; `my/start-idle-modes' runs once."
 ;; after a multi-line `setq' would swallow the closing paren.)
 (setq-default indent-tabs-mode nil)     ; C2  no tabs written into files
 (setq-default require-final-newline t)  ; C8  no missing-newline diffs
+
+(setq-default word-wrap t)               ; C15 soft breaks land at a word boundary
+(add-hook 'text-mode-hook #'visual-line-mode)

@@ -1,0 +1,214 @@
+#+TITLE: display — footnote direction, cursor direction, and the reading room
+#+PROPERTY: header-args:emacs-lisp :tangle ./display.el
+#+PROPERTY: header-args+: :results none
+
+* Why
+
+The base leaves paragraph direction at nil (A11): each paragraph is laid out from
+its first strong character. For a sefer that is right — Hebrew paragraphs from
+the right margin, an English paragraph in the same file from the left — and the
+measurements that rule out forcing a direction are in A11, where the trap
+belongs, because it is a property of Emacs and not of this profile.
+
+nil has one blind spot, and it is the reason the old config forced whole buffers
+right-to-left: an org footnote definition starts with =[fn:label]=, whose first
+strong character is the Latin =f=. So every footnote definition is laid out as a
+left-to-right paragraph, label at the left margin, Hebrew body left-aligned.
+Measured on the 407 KB sefer (115 definitions, 180×43 frame, 1244 px body): the
+first glyph of =[fn:1]= is drawn at x=7; forced =right-to-left= draws it at
+x=1231, and a Hebrew body paragraph starts at x=1252.
+
+Emacs has no per-paragraph direction. =bidi-paragraph-direction= is a
+buffer-local variable, and the two regexp variables that look like the answer,
+=bidi-paragraph-start-regexp= and =bidi-paragraph-separate-regexp=, were
+measured and change nothing (the label still lands at x=7). That leaves two
+mechanisms, and only one of them is affordable:
+
+- **Force the whole buffer right-to-left.** One line, and it is what the old
+  config did. It is free while the text is Hebrew (4.2 ms a line scroll,
+  indistinguishable from nil), and it reintroduces the very trap A11 exists to
+  avoid the moment an English paragraph scrolls past: 63.4 ms a line, 89.6 ms a
+  keystroke, measured on a 400 KB English file. Seforim do contain English
+  paragraphs, so this is a real screen, not a hypothetical one.
+- **Take the label out of the direction scan.** Replaced text is not counted
+  when Emacs decides a paragraph's direction, so a =display= property over
+  =[fn:label]= makes the paragraph start at the Hebrew that follows it: the
+  definition lays out right-to-left, and the label is still drawn — from the
+  display string, at the right edge, in its own order. Replacing only the =[=
+  character does not work (measured: direction stays left-to-right); the whole
+  label has to be replaced.
+
+The second is what this file does. The display string is a RIGHT-TO-LEFT MARK
+followed by the label, which pins the label's own order as well: without it a
+forced =right-to-left= renders the brackets mirrored (=]fn:1[=), which is
+correct bidi but not what a sefer's footnote number should look like.
+
+* Priced
+
+0 ms at startup: one constant, three functions, one hook. Measured on the sefer,
+180×43 frame, real Wayland compositor:
+
+| operation                                         | cost      |
+|---------------------------------------------------+-----------|
+| an idle command (signature unchanged)             | 0.032 ms  |
+| a command that rebuilds 11 visible label overlays | 0.069 ms  |
+| a keystroke at a footnote, refresh included       | 6.8 ms    |
+| the same keystroke with the overlays removed      | **38.4 ms** |
+| scrolling inside the footnotes, with / without    | 10.7 / 10.7 ms |
+
+The second row is the reason this is not a compromise: with the base's nil and
+no labels, a footnote definition is a left-to-right paragraph of Hebrew, and
+that is the same 10× disagreement A11 measures — 38.4 ms per character typed.
+The fix does not add cost, it removes the one the direction bug was charging on
+every footnote in the file. Scrolling is untouched (10.7 ms either way), and the
+buffer is not modified: overlays are not text.
+
+The label is drawn at the right margin in its RTL form — brackets mirrored, as
+an RTL paragraph shows them. Verified by reading the display back: interrupting
+at every pixel of =[fn:1]= returns string indices 6,2,3,4,5,1,0 from left to
+right, i.e. `]fn:1[` at x=1217..1259 of a 1260 px body, which is what the old
+forced-=right-to-left= config drew.
+
+Export is unaffected: =org-export-as= returns a byte-identical string with the
+overlays in place and with them removed, because display properties are not
+buffer text.
+
+* Direction
+
+No code. The base's nil is what this profile wants, and the profile no longer
+overrides it — the previous version of this file claimed to set nil while the
+base forced =left-to-right=, which is how the RTL fix went missing for a whole
+stage.
+
+* Footnotes
+
+The overlays are rebuilt by =my/rtl-footnote-labels= for the text the windows
+show, and by =my/rtl-footnote-labels-follow= on =post-command-hook= when the
+buffer or a window has changed. A refresh that deletes and recreates an
+unchanged overlay would invalidate that part of the display on every keystroke,
+which is why the tick is compared first.
+
+#+begin_src emacs-lisp
+;; -*- lexical-binding: t; -*-
+
+(defconst my/rlm "\u200F"   ; RIGHT-TO-LEFT MARK
+  "Zero-width character that makes what follows it right-to-left.")
+
+(defvar-local my/rtl-footnote-labels nil
+  "Overlays that lay out each visible footnote definition right-to-left.")
+
+(defun my/shown-region (window)
+  "The text WINDOW displays, as (BEG . END), without forcing a redisplay.
+`window-end' with UPDATE returns it exactly but pays for a full redisplay
+(measured 2.2 ms on the sefer), which is too much to spend on every command.
+Counting `window-body-height' buffer lines from the start cannot undershoot:
+with wrapping, every buffer line covers at least one screen line."
+  (cons (window-start window)
+        (save-excursion
+          (goto-char (window-start window))
+          (forward-line (1+ (window-body-height window)))
+          (point))))
+
+(defun my/rtl-footnote-labels (&optional beg end)
+  "Lay out each footnote definition in BEG..END right-to-left.
+With no BEG and END, use the text each window showing this buffer displays.
+
+A definition's label is Latin text at the head of the paragraph, so with the
+base's nil paragraph direction the whole definition is left-to-right. Text
+covered by a `display' property is not counted when Emacs picks a paragraph's
+direction, so replacing the label makes the paragraph start at the Hebrew that
+follows it; the label is still drawn, from the display string, at the right
+edge. `evaporate' keeps a deleted label from leaving its overlay behind."
+  (when (and (derived-mode-p 'org-mode) (null bidi-paragraph-direction))
+    (mapc #'delete-overlay my/rtl-footnote-labels)
+    (setq my/rtl-footnote-labels nil)
+    (save-excursion
+      (dolist (region (if (and beg end)
+                          (list (cons beg end))
+                        (mapcar #'my/shown-region
+                                (get-buffer-window-list nil nil t))))
+        (goto-char (car region))
+        (while (re-search-forward "^\\[fn:[^]\n]*\\]" (cdr region) t)
+          (let ((overlay (make-overlay (match-beginning 0) (match-end 0) nil t)))
+            (overlay-put overlay 'display
+                         (concat my/rlm (match-string-no-properties 0)))
+            (overlay-put overlay 'evaporate t)
+            (push overlay my/rtl-footnote-labels)))))))
+
+(defvar-local my/rtl-footnote-signature nil
+  "What the labels were last rebuilt from, so an idle command costs nothing.")
+
+(defun my/rtl-footnote-labels-follow ()
+  "Rebuild the footnote overlays when this buffer or a window has changed.
+`post-command-hook' runs before redisplay, so the first frame drawn for a sefer
+already has them."
+  (when (and (derived-mode-p 'org-mode) (null bidi-paragraph-direction))
+    (let ((signature
+           (cons (buffer-chars-modified-tick)
+                 (mapcar (lambda (window) (cons window (my/shown-region window)))
+                         (get-buffer-window-list nil nil t)))))
+      (unless (equal signature my/rtl-footnote-signature)
+        (setq my/rtl-footnote-signature signature)
+        (my/rtl-footnote-labels)))))
+
+(add-hook 'post-command-hook #'my/rtl-footnote-labels-follow)
+#+end_src
+
+* Cursor
+
+Vertical movement is already what reading wants: =line-move-visual= is Emacs's
+default, so =C-p=/=C-n= move by displayed line, which for wrapped text is the
+only sensible unit.
+
+Horizontal movement is where the complaint came from, and the honest answer is
+that no setting fixes it. =C-f=/=C-b= are =forward-char=/=backward-char=: they
+move in *logical* order, always, so inside a Hebrew paragraph =C-f= steps
+leftwards on screen. The arrow keys are different — =right-char=/=left-char=
+already move in visual order, and therefore already step right on screen in
+Hebrew.
+
+Measured on the sefer, so that this is not re-argued next session: from the same
+position inside a Hebrew word, one =right-char= lands on the logically
+*previous* character — the one drawn to the right — with
+=visual-order-cursor-movement= at either value; 200 presses cost 0.35 ms with it
+set and 0.19 ms without, both under perception. What the variable adds is
+forcing strict screen order in mixed text, which its docstring warns can move
+point "many buffer positions away". So it stays at its default, nil.
+
+The only way to make =C-f= itself follow the eye is to rebind it to
+=right-char=. That changes a core key in every buffer of the profile, so it is
+not done here: it is one line, and the user's call.
+
+* The reading room
+
+=C-c w= toggles a centred column for the current buffer, as in the old config.
+Unlike the old config it does not touch =visual-line-mode= (the base wraps every
+text buffer now, so leaving the reading room must not unwrap it) and it does not
+touch line numbers (nothing in the hebrew profile turns them on).
+
+The width is in columns, not a fraction, so the same sefer is the same width
+whichever frame it is opened in. =C-c {= / =C-c }= / =C-c |= adjust it while the
+mode is on, from olivetti's own keymap.
+
+#+begin_src emacs-lisp
+(my/autoload "olivetti")
+
+(setq-default olivetti-body-width 100)
+
+(defun my/toggle-reading-room ()
+  "Centre the text in this window, or give the width back."
+  (interactive)
+  (olivetti-mode 'toggle)
+  (message "Reading room: %s" (if olivetti-mode "on" "off")))
+
+(global-set-key (kbd "C-c w") #'my/toggle-reading-room)
+#+end_src
+
+Olivetti is here rather than the six-line built-in for one reason: it handles
+the cases the built-in would leave to this file — a split window, a new frame,
+a deleted window, a text-scale change — by hooking
+=window-configuration-change-hook= and =window-size-change-functions= itself.
+Splitting is normal use in this profile, and margin arithmetic done by hand in
+=window-size-change-functions= is the kind of code that is wrong in a corner
+nobody tested. Its redisplay cost is the same as the built-in's: 3.8 / 4.7 /
+2.7 ms on the same sefer, inside noise of not centring at all.
