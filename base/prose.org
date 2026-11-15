@@ -37,10 +37,22 @@ profile, and spending 2.1 s of background CPU to make org ready for a profile
 that edits code is a cost with no return, so the timer is started only when the
 profile is one that reads and writes org: =hebrew= and =notes=.
 
-Org loads its own modules on the first org buffer: **2,109 ms** measured, and
-the first file opened through the daemon pays it. Entering org once on a short
-timer moves that work into the background, where it overlaps with the second or
-so a person spends choosing a file, instead of sitting in front of the buffer.
+Org loads its own modules on the first org buffer, and the first file opened
+pays it. Measured on this machine, batch, entering `org-mode' in a throwaway
+buffer: **492 ms**. Opening the 340 KB sefer is the number that matters,
+though, and it is larger than the chain alone: **1.47–1.54 s** in a frame with
+org not yet loaded, against **0.1–0.5 s** once it is — of which the file read
+and its automatic mode are 0.31–0.42 s, a second explicit `org-mode` 0.08–
+0.10 s, and the first redisplay 4–13 ms. (An earlier session recorded 2,109 ms
+for this; that was the same load under heavier conditions, and it is
+superseded by the numbers above, which reproduce.)
+
+Entering org once on a short timer moves that work into the background, where it
+overlaps with the second or so a person spends choosing a file, instead of
+sitting in front of the buffer. It cannot make the first open free: what stays
+is reading and setting up the file. And because Emacs is single-threaded, a file
+opened inside the first second does not jump the queue — the work is the same,
+the order is just less kind.
 
 A plain timer, not an idle timer: an idle timer stops when Emacs is busy, and a
 daemon with no clients is not always reported as idle. Entering =org-mode= is

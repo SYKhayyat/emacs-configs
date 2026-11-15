@@ -68,8 +68,14 @@ listed in the `MANIFEST` beside it or `test/invariants.el` fails. A profile
 ## Done and verified, with the numbers
 
 - Startup: daemon start **475–724 ms once per session**, then **79–117 ms per
-  sefer**. The 2.1 s first `org-mode` was org's module `require` chain; a 0.2 s
-  preload timer that actually *enters* `org-mode` in a temp buffer removes it.
+  sefer**. The first `org-mode` in a session is org's module `require` chain;
+  a 0.2 s preload timer that actually *enters* `org-mode` in a temp buffer
+  moves it out of the file open. Re-measured in stage 3, since the old 2,109 ms
+  figure no longer reproduced: the chain itself is **492 ms**, and the first
+  open of the 340 KB sefer is **1.47–1.54 s** without it against **0.1–0.5 s**
+  with it. The preload is guarded to `hebrew` and `notes`; the ide profile does
+  not pay for it (verified in a real frame: `(featurep 'org)` is t in both prose
+  profiles 3 s after start, nil in `ide`).
 - Reading a 407 KB sefer: read file 4.3 ms, `fundamental-mode` 3.8 ms, warm
   `org-mode` 36 ms, scroll a screen 16–19 ms in Hebrew / 11–13 ms in ASCII
   (Wayland). Font-lock is off everywhere in the hebrew profile.
