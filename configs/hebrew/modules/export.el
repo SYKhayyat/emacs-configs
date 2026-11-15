@@ -9,6 +9,12 @@
 ;; heading in a Hebrew sefer aligns to the right margin like the text under it.
 (setq org-export-default-language "he")
 
+;; Number and list every heading level, not Emacs's three. Deeper headings are
+;; rendered either way; the default only leaves them unnumbered and out of the
+;; TOC, which is exactly the structure a sefer uses. Global on purpose: the
+;; export stages the text in a fresh buffer, where a buffer-local value is gone.
+(setq org-export-headline-levels 10)
+
 (defun my/org-footnotes-in-reference-order ()
   "Order and renumber this buffer's footnotes in reading order.
 

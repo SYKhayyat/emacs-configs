@@ -133,9 +133,20 @@ numbers do not transfer.
 Three were asked; the third is now done (see the buffer entries above). The two
 remaining are measured only as far as the paragraph below:
 
-1. **Unlimited heading depth.** Untested whether org, or the exporter, actually
-   stops at some depth. Nothing in the repo caps it today.
-2. **Deep list nesting.** Same: no cap written anywhere, untested in practice.
+1. ~~**Unlimited heading depth.**~~ Tested and settled. Nothing caps the depth:
+   a fixture with headings 1–8 and a list 8 deep exports to PDF with every
+   level present. What Emacs's default `org-export-headline-levels` of 3 caps
+   is *numbering and the TOC* — level 4+ is emitted as
+   `#heading(level: 4, outlined: false, numbering: none)`, unnumbered and
+   absent from the contents. The hebrew profile now sets it to 10
+   (`configs/hebrew/modules/export.org`), so H4–H8 are numbered
+   `1.1.1.1`…`1.1.1.1.1.1.1.1` and listed; cost is a longer TOC and nothing
+   measurable. It must be a global `setq`: the export stages the text in a
+   fresh buffer, where a buffer-local value is gone. A file can still override
+   with `#+OPTIONS: H:n`. `test/export-in-profile.el` now fails if a
+   fourth-level heading comes out unnumbered.
+2. ~~**Deep list nesting.**~~ Same test: an 8-deep list exports to PDF with all
+   eight levels and no error. Nothing needed.
 3. ~~**Hebrew perfection in the buffer**~~ — RTL text, cursor, centred column.
    Done: `configs/hebrew/modules/display.org`, plus C15 in `base/core.org`.
 
@@ -150,7 +161,10 @@ without the labels and `right-to-left` with them, so the check cannot pass on a
 broken hook. `fill-column` is still 70 and `line-move-visual` is still Emacs's
 default.
 
-Still open in stage 2: unlimited heading depth, and deep list nesting.
+Stage 2's own list is now empty except for the cross-platform run: heading and
+list depth are measured and settled (see the requests section below), the
+buffer work is in, and `bin/check.sh` is clean. What remains before the stage
+can be called finished is the first run on Windows or macOS (comtai #5).
 
 ## Vendor patch and upstream
 

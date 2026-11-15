@@ -54,6 +54,23 @@ Measured cost of the ordering step alone: **452 ms** on the 407 KB sefer and
 **1 ms** on a 5 KB note. A subtree export skips it, since ordering is a
 whole-file operation.
 
+Heading depth: nothing caps how deep a sefer nests, in the buffer or in Typst —
+a fixture with headings 1–8 and a list 8 deep exports to PDF with every level
+present and no error. What Emacs's default =org-export-headline-levels= of 3 does
+cap is *numbering and the table of contents*: level 4 and deeper are emitted as
+=#heading(level: 4, outlined: false, numbering: none)=, so a four-deep section
+renders as a heading with no number and no line in the TOC. Measured in the PDF:
+with the default, the TOC lists H1–H3 and the four-deep headings are unnumbered;
+at 10, the same document numbers them =1.1.1.1= through =1.1.1.1.1.1.1.1= and
+lists all of them. Raising it costs one line, no measurable time and a longer
+TOC, so this profile numbers everything: a sefer that nests four or five deep
+should say so in its own numbering.
+
+This has to be a global =setq=, not a buffer-local one: the export stages a copy
+of the text in a fresh buffer, and a =setq-local= in the source buffer never
+reaches it. A file that wants a different depth can still override it with
+=#+OPTIONS: H:n=.
+
 #+begin_src emacs-lisp
 ;; -*- lexical-binding: t; -*-
 
@@ -65,6 +82,12 @@ whole-file operation.
 ;; with the vendored patch, whether Typst is told `dir: rtl` so that a numbered
 ;; heading in a Hebrew sefer aligns to the right margin like the text under it.
 (setq org-export-default-language "he")
+
+;; Number and list every heading level, not Emacs's three. Deeper headings are
+;; rendered either way; the default only leaves them unnumbered and out of the
+;; TOC, which is exactly the structure a sefer uses. Global on purpose: the
+;; export stages the text in a fresh buffer, where a buffer-local value is gone.
+(setq org-export-headline-levels 10)
 
 (defun my/org-footnotes-in-reference-order ()
   "Order and renumber this buffer's footnotes in reading order.

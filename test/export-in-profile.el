@@ -134,6 +134,36 @@
             (unless (string= before (with-temp-buffer (insert-file-contents oo) (buffer-string)))
               (my/export-test-fail "ordering rewrote the source file"))))
 
+        ;; ---- 4. deep headings are numbered, and in the TOC ----------------
+        ;; Emacs defaults `org-export-headline-levels' to 3, which renders a
+        ;; deeper heading but drops its number and its TOC line: the profile
+        ;; promises the structure, so a fifth-level heading must arrive
+        ;; without `numbering: none' / `outlined: false'. Both markers are
+        ;; what ox-typst emits when the export level is short.
+        (let ((deep (expand-file-name "deep.org" work)))
+          (with-temp-file deep
+            (insert (mapconcat (lambda (n) (format "%s H%d\nbody\n"
+                                                  (make-string n ?*) n))
+                               (number-sequence 1 5) "")))
+          (my/export-test--with-file
+           deep
+           (lambda ()
+             (condition-case err
+                 (progn
+                   (org-typst-export-as-typst)
+                   (with-current-buffer org-typst-export-buffer-name
+                     (let ((typed (buffer-string)))
+                       (dolist (n '(4 5))
+                         (unless (string-match-p
+                                  (format "#heading(level: %d)\\[H%d\\]" n n) typed)
+                           (my/export-test-fail
+                            "heading level %d is not numbered/outlined in the export: %S"
+                            n (and (string-match (format "#heading(level: %d[^]]*" n)
+                                                 typed)
+                                   (match-string 0 typed))))))))
+               (error
+                (my/export-test-fail "deep-heading typst signalled: %S" err))))))
+
     ;; A fixture that failed early must not poison the next run.
     (dolist (dir (seq-difference (my/export-test--temp-dirs) temps-before))
       (ignore-errors (delete-directory dir t)))
