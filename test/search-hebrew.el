@@ -1,0 +1,13 @@
+;;; search-hebrew.el --- niqqud, vav/yod and whitespace in Hebrew search -*- lexical-binding: t; -*-
+(require 'orderless)
+(let (bad)
+  (dolist (c '(("דוד" "דויד" t) ("דויד" "דוד" t) ("שלום" "שָׁלוֹם" t) ("דוד" "דבר" nil)))
+    (let* ((d (my/orderless-hebrew (car c) 0 1))
+           (m (and d (string-match-p (cdr d) (cadr c)))))
+      (unless (eq (and m t) (nth 2 c)) (push (format "orderless %S vs %S" (car c) (cadr c)) bad))))
+  (unless (string-match-p (my/hebrew-niqqud-regexp "שלום עולם") "שלום\nעולם")
+    (push "space does not match a line break" bad))
+  (unless (string-match-p (my/hebrew-niqqud-regexp "שלום") "שָׁלוֹם")
+    (push "niqqud not ignored" bad))
+  (if bad (progn (dolist (b bad) (message "FAIL search-hebrew: %s" b)) (kill-emacs 1))
+    (message "ok   search-hebrew")))

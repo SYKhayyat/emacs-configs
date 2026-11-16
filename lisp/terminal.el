@@ -15,9 +15,13 @@
                      (assoc (completing-read "Shell: " (mapcar #'car shells) nil t) shells)
                    (car shells))))
     (unless choice (user-error "No shell found"))
+    ;; shell.el defvars explicit-shell-file-name; bind it only once it is special,
+    ;; or the let below is lexical and shell.el's defvar then signals.
+    (require 'shell)
     (let ((explicit-shell-file-name (cdr choice)) (shell-file-name (cdr choice)))
       (shell (generate-new-buffer-name (format "*term:%s*" (car choice)))))))
 (defun my/toggle-terminal ()
+  "Show, hide or start the bottom shell panel."
   (interactive)
   (let* ((buf (seq-find (lambda (b) (with-current-buffer b (derived-mode-p 'shell-mode)))
                         (buffer-list)))

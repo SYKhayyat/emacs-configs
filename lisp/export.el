@@ -56,7 +56,10 @@ is never rewritten.  The staged copy and the working Typst file are both
 deleted, so only NAME.pdf remains, next to NAME.org.
 
 SUBTREEP is passed straight through without ordering, since ordering is a
-whole-file operation."
+whole-file operation.  Otherwise the whole file is exported even when the buffer
+is narrowed.  ASYNC is refused: compilation here is synchronous."
+  (when async
+    (user-error "Asynchronous export is not supported; the PDF is compiled synchronously"))
   (unless buffer-file-name
     (user-error "This buffer is not visiting a file, so there is nowhere to put a PDF"))
   (when-let* ((empty (org-with-wide-buffer (my/org-empty-footnote))))
@@ -79,7 +82,8 @@ whole-file operation."
             ;; the copy; export from the copy.
             ;; Read the text first: inside `with-temp-file' the current buffer is
             ;; the temporary one, and point-min/max would refer to an empty file.
-            (let ((body (buffer-substring-no-properties (point-min) (point-max))))
+            (let ((body (org-with-wide-buffer
+                         (buffer-substring-no-properties (point-min) (point-max)))))
               (with-temp-file staged (insert body)))
             (with-current-buffer (find-file-noselect staged)
               (org-mode)

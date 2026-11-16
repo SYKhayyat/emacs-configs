@@ -1,7 +1,9 @@
 # Decisions
 
-- Startup (daemon): hebrew 0.15 s, notes 0.18 s, ide 0.19 s (old config: 6.1 s).
-- Everything lazy by default (`:commands`, `:bind`, `:hook`); packages own `elpa/`, quickstart on.
+- Startup: `(emacs-init-time)` 0.15-0.19 s when first measured; re-measured 2026-11-16 at ~0.27 s init and ~0.6-0.95 s until the daemon socket answers (old config: 6.1 s).
+- Profiles: hebrew = Hebrew notes (RTL, niqqud search, Hebrew font); notes = English Org/Markdown without that; ide = code.
+- Completion order: alphabetical, folders first, globally (no history ranking in M-x).
+- Mostly lazy (`:commands`, `:bind`, `:hook`; hydra, vertico, marginalia load at start on purpose) (`:commands`, `:bind`, `:hook`); packages own `elpa/`, quickstart on.
 - bidi-paragraph-direction stays nil: forcing it costs 10-50x on wrapped Hebrew. Footnote RTL is a buffer-local display overlay.
 - `org-footnote-auto-adjust` nil (863 ms/insert); org's footnote font-lock keyword stripped. Font-lock stays on.
 - org settings use `setq` in `:init`, not `:custom`: customize-set-variable loads org at startup.

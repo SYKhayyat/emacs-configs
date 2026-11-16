@@ -5,7 +5,7 @@
   :custom (corfu-cycle t) (corfu-auto t) (corfu-auto-delay 0.2) (corfu-auto-prefix 2))
 
 (use-package eglot
-  :hook ((python-mode rust-mode nix-mode) . eglot-ensure)
+  :hook ((python-mode rust-mode nix-mode typst-ts-mode) . eglot-ensure)
   :custom
   (eglot-autoshutdown t)
   (eglot-send-changes-idle-time 0.5)

@@ -4,9 +4,9 @@
 ;; installer; at run time quickstart activates the autoloads and use-package
 ;; (no :ensure) configures them lazily.
 ;;
-;; Tag after a name = the profiles that use it; no tag = all. It is only
-;; documentation, installing everything everywhere is cheap and keeps the
-;; three profiles interchangeable.
+;; Every profile gets every package (installing everything is cheap and keeps
+;; the profiles interchangeable); which profile loads what is decided by its
+;; module list, not here.
 
 (defconst my/packages
   '(;; completion (all)
@@ -21,7 +21,7 @@
     ;; prose (hebrew, notes)
     olivetti valign org-modern org-download markdown-mode nov
     ;; ide
-    magit diff-hl git-timemachine projectile consult-projectile envrc
+    magit diff-hl git-timemachine projectile envrc
     nix-mode rust-mode cargo typst-ts-mode rainbow-delimiters
     ;; reading, ai
     pdf-tools gptel)

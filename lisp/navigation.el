@@ -11,20 +11,35 @@
 (keymap-global-set "C-x t k" #'tab-bar-close-tab)
 (keymap-global-set "C-x t r" #'tab-bar-rename-tab)
 
-(defun my/kill-current-buffer () (interactive) (kill-buffer (current-buffer)))
+(defun my/kill-current-buffer ()
+  "Kill the current buffer without asking which one."
+  (interactive) (kill-buffer (current-buffer)))
 (defun my/kill-other-buffers ()
-  "Kill every file-visiting buffer but this one."
+  "Kill every other file-visiting buffer, after one confirmation with the count.
+This includes buffers other tabs and `activities' are using.  Modified buffers
+still prompt one by one."
   (interactive)
-  (dolist (b (buffer-list))
-    (when (and (not (eq b (current-buffer))) (buffer-file-name b))
-      (kill-buffer b))))
-(defun my/revert-buffer () (interactive) (revert-buffer t t))
-(defun my/split-below-and-follow () (interactive) (select-window (split-window-below)))
-(defun my/split-right-and-follow () (interactive) (select-window (split-window-right)))
+  (let ((victims (seq-filter
+                  (lambda (b) (and (not (eq b (current-buffer))) (buffer-file-name b)))
+                  (buffer-list))))
+    (when (and victims
+               (y-or-n-p (format "Kill %d other file buffer%s? "
+                                 (length victims) (if (cdr victims) "s" ""))))
+      (mapc #'kill-buffer victims))))
+(defun my/revert-buffer ()
+  "Revert this buffer from its file, asking first if it has unsaved changes."
+  (interactive) (revert-buffer nil (not (buffer-modified-p))))
+(defun my/split-below-and-follow ()
+  "Split below and select the new window."
+  (interactive) (select-window (split-window-below)))
+(defun my/split-right-and-follow ()
+  "Split right and select the new window."
+  (interactive) (select-window (split-window-right)))
 (defun my/project-in-new-tab ()
+  "Open a new tab and pick a projectile project in it."
   (interactive)
   (tab-bar-new-tab)
-  (call-interactively #'project-switch-project))
+  (call-interactively #'projectile-switch-project))
 
 (keymap-global-set "C-x K" #'my/kill-current-buffer)
 (keymap-global-set "C-c k" #'my/kill-other-buffers)
@@ -35,6 +50,7 @@
 (use-package ibuffer
   :bind ("C-x C-b" . ibuffer)
   :custom
+  (ibuffer-default-sorting-mode 'alphabetic)
   (ibuffer-saved-filter-groups
    '(("default"
       ("Org" (mode . org-mode))

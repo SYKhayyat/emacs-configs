@@ -26,6 +26,6 @@ _b_ buffer  _d_ kill buffer  _o_ kill others  _g_ ibuffer  _1_.._9_ jump"
     ("b" consult-buffer :color blue)
     ("d" my/kill-current-buffer) ("o" my/kill-other-buffers)
     ("g" ibuffer :color blue) ("q" nil :color blue)))
-;; hydra is lazy, so the keys that open these load it first.
+;; The defhydra forms need the macro, so hydra loads with this module; it is small.
 (keymap-global-set "C-c W" (lambda () (interactive) (require 'hydra) (hydra-writing/body)))
 (keymap-global-set "C-c T" (lambda () (interactive) (require 'hydra) (hydra-tabs/body)))

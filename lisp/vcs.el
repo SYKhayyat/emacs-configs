@@ -13,4 +13,3 @@
   (projectile-project-search-path '("~/Documents/"))
   (projectile-known-projects-file (expand-file-name "projectile.eld" my/state-dir))
   (projectile-project-root-files-bottom-up '("Bavli" ".projectile" ".git")))
-(use-package consult-projectile :after projectile)

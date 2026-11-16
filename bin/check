@@ -1,12 +1,22 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Run the invariants and export tests against each profile (batch).
-set -e
+# Fails if any run fails: the exit status is Emacs's, not grep's.
+set -uo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd); cd "$root"
-for p in hebrew notes ide; do
-  emacs -Q --batch -l configs/$p/early-init.el --eval '(package-activate-all)' \
-    -l configs/$p/init.el -l test/invariants.el 2>&1 | grep -E "^(ok|FAIL|Error)"
+fail=0
+run() { # profile test
+  local out
+  out=$(emacs -Q --batch -l "configs/$1/early-init.el" --eval '(package-activate-all)' \
+          -l "configs/$1/init.el" -l "test/$2.el" 2>&1)
+  local rc=$?
+  printf '%s\n' "$out" | grep -E "^(ok|FAIL|Error|skip)"
+  if [ $rc -ne 0 ]; then echo "FAIL $2 ($1): exit $rc"; fail=1; fi
+}
+for p in hebrew notes ide; do run $p invariants; done
+run hebrew export-in-profile   # asserts the RTL direction, hebrew only
+for p in hebrew notes; do
+  for t in export-footnote-placement export-narrowed; do run $p $t; done
 done
-for t in export-in-profile export-footnote-placement; do
-  emacs -Q --batch -l configs/hebrew/early-init.el --eval '(package-activate-all)' \
-    -l configs/hebrew/init.el -l test/$t.el 2>&1 | grep -E "^(ok|FAIL)"
-done
+for p in hebrew; do run $p search-hebrew; done
+run ide terminal
+exit $fail

@@ -2,18 +2,23 @@
 ;; Each Hebrew letter may be followed by niqqud/cantillation points.
 
 (defconst my/niqqud "[\u0591-\u05C7]*")
+(defconst my/hebrew-vav-yod "[\u05D5\u05D9\u0591-\u05C7]*"
+  "Any run of vav, yod and niqqud, so plene and defective spellings find each other.")
 (defun my/hebrew-niqqud-regexp (string)
-  "Regexp for STRING that ignores niqqud, or nil if it has no Hebrew letters."
+  "Regexp for STRING that ignores niqqud, or nil if it has no Hebrew letters.
+Whitespace in STRING matches any run of whitespace, as in a normal isearch."
   (when (string-match-p "[\u05D0-\u05EA]" string)
     (mapconcat (lambda (c)
-                 (concat (regexp-quote (char-to-string c))
-                         (if (<= #x05D0 c #x05EA) my/niqqud "")))
+                 (cond ((memq c '(?\s ?\t ?\n)) "[ \t\n]+")
+                       ((<= #x05D0 c #x05EA) (concat (regexp-quote (char-to-string c)) my/niqqud))
+                       (t (regexp-quote (char-to-string c)))))
                string "")))
 
 (defun my/isearch-niqqud-fun (orig &rest args)
   (let ((f (apply orig args)))
     (lambda (string &optional bound noerror count)
-      (if-let* ((rx (and (not isearch-regexp) (my/hebrew-niqqud-regexp string))))
+      (if-let* ((rx (and (not isearch-regexp) (not isearch-regexp-function)
+                         (my/hebrew-niqqud-regexp string))))
           (funcall (if isearch-forward #'re-search-forward #'re-search-backward)
                    rx bound noerror count)
         (funcall f string bound noerror count)))))
@@ -25,9 +30,11 @@
     (when (string-match-p "\\`[\u05D0-\u05EA]+\\'" pattern)
       (cons 'orderless-regexp
             (concat my/niqqud
+                    ;; A vav/yod may sit between any two typed letters (and
+                    ;; typed ones are optional), so דוד and דויד find each other.
                     (mapconcat (lambda (c)
-                                 (concat (regexp-quote (char-to-string c))
-                                         (if (memq c '(?ו ?י)) "?" "")
-                                         my/niqqud))
+                                 (if (memq c '(?ו ?י))
+                                     (concat (regexp-quote (char-to-string c)) "?" my/niqqud)
+                                   (concat (regexp-quote (char-to-string c)) my/hebrew-vav-yod)))
                                pattern "")))))
   (add-to-list 'orderless-style-dispatchers #'my/orderless-hebrew))

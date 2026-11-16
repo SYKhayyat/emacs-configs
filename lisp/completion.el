@@ -1,9 +1,25 @@
 ;;; completion.el --- minibuffer and in-buffer completion -*- lexical-binding: t; -*-
 ;; The standard vertico stack, configured the documented way.
 
+(defun my/vertico-sort-folders-first (cands)
+  "Sort CANDS alphabetically, directories (ending in \"/\") before files.
+No `file-directory-p' stat per candidate; the trailing slash is how
+`read-file-name' presents directories."
+  (sort (copy-sequence cands)
+        (lambda (a b)
+          (let* ((a (substring-no-properties a))
+                 (b (substring-no-properties b))
+                 (da (string-suffix-p "/" a))
+                 (db (string-suffix-p "/" b)))
+            (cond ((and da (not db)) t)
+                  ((and db (not da)) nil)
+                  (t (string-lessp (downcase a) (downcase b))))))))
+
 (use-package vertico
   :init (vertico-mode 1)
-  :custom (vertico-count 15) (vertico-resize nil))
+  ;; Alphabetical, folders first, everywhere (M-x included: no history ranking).
+  :custom (vertico-count 15) (vertico-resize nil)
+  (vertico-sort-function #'my/vertico-sort-folders-first))
 
 (use-package orderless
   :custom
@@ -32,7 +48,11 @@
          ("C-x r b" . consult-bookmark))
   :custom
   (consult-narrow-key "<")
-  (consult-preview-key '(:debounce 0.2 any)))
+
+  (consult-preview-key '(:debounce 0.2 any))
+  :config
+  ;; Alphabetical by path (rg then runs single-threaded; slower on huge trees).
+  (setq consult-ripgrep-args (concat consult-ripgrep-args " --sort path")))
 
 (use-package embark
   :bind (("C-." . embark-act)
@@ -45,7 +65,7 @@
 (use-package embark-consult
   :hook (embark-collect-mode . consult-preview-at-point-mode))
 
-(use-package wgrep :custom (wgrep-auto-save-buffer t))
+(use-package wgrep :defer t :custom (wgrep-auto-save-buffer t))
 
 (use-package helpful
   :bind (([remap describe-function] . helpful-callable)

@@ -14,7 +14,7 @@ an installed exporter would mean "clone, then remember to install, with network,
 before exporting works". At 112 KB and one file, committing it is cheaper than
 building and documenting an install path for it.
 
-`bin/install.sh` remains the answer for anything too large or too native to
+`bin/install` remains the answer for anything too large or too native to
 vendor (stage 4: magit, eglot dependencies, vterm).
 
 ## Local patch
@@ -59,6 +59,6 @@ cp /tmp/fetch/ox-typst-*/ox-typst{,-autoloads}.el vendor/ox-typst/
 ```
 
 Then update the version above, re-apply `upstream.patch` (it may no longer
-apply cleanly, which is the point of keeping it as a patch), run `bin/check.sh`
-and `bin/check-export.sh`. The version string in the first line of
+apply cleanly, which is the point of keeping it as a patch), run `bin/check`
+and `bin/check`. The version string in the first line of
 `ox-typst-autoloads.el` must match this table.
