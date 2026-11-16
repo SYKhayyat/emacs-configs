@@ -1,0 +1,10 @@
+# Written by `comtai share`. The task list (tasks.json) and hooks/ are shared with
+# the repo; everything below is per-clone and must not be committed.
+#
+# The journal is local on purpose: it is an append-only record of activity in
+# this checkout, and two clones appending to the same file would conflict on
+# every pull.
+log.jsonl
+log.jsonl.*
+lock
+*.tmp

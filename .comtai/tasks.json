@@ -1,0 +1,339 @@
+{
+  "version": 1,
+  "next_id": 25,
+  "tasks": [
+    {
+      "id": 1,
+      "title": "stage 2: make hebrew the daily writer — shared set first (vertico/orderless/marginalia/consult, savehist, recentf, save-place, theme, hebrew font), then niqqud search, then jinx only if it survives the test",
+      "note": "plan.md §6 Step 2. Order matters and is not the old one: plan.md §2 says after 3 days and 32 commits the profiles have no completion, no minibuffer history, no recent files, no Hebrew font and no niqqud search, while the repo grew 1268 lines of harness. So the shared set comes BEFORE finishing export. Done when you have written in it for a week (rule 8), with FRICTION.md kept — that list is the real stage 5.",
+      "state": "todo",
+      "branch": "main",
+      "location": {
+        "file": "configs/hebrew/MANIFEST"
+      },
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-12T22:14:43.588179663Z",
+      "updated": "2026-11-16T18:23:44.111615581Z"
+    },
+    {
+      "id": 2,
+      "title": "stage 3: notes profile — markdown-mode (lazy, :mode \"\\\\.md\\\\'\") + jinx en_US, on the shared set",
+      "note": "plan.md §6 Step 3: 'markdown + jinx. Small.' Depends on #1 finishing the shared set, since notes gets it too. No stage is gated on Windows/macOS (see the closed gate task).",
+      "state": "todo",
+      "branch": "main",
+      "location": {
+        "file": "configs/notes/MANIFEST"
+      },
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-12T22:14:43.594930033Z",
+      "updated": "2026-11-16T18:23:44.124122304Z"
+    },
+    {
+      "id": 3,
+      "title": "stage 4: ide profile — eglot + envrc, treesit grammars from Nix, magit, flymake, project.el, vterm or eat, font-lock ON, one language at a time",
+      "note": "plan.md §4 + §6 Step 4. Start with the language used most. Never treesit-auto (old bug #35, reverts unsaved buffers), never eglot-java (old #31, the JDT download). Prefer built-in completion-preview-mode before adding corfu (rule 5).",
+      "state": "todo",
+      "branch": "main",
+      "location": {
+        "file": "configs/ide/MANIFEST"
+      },
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-12T22:14:43.599978958Z",
+      "updated": "2026-11-16T18:23:44.135700047Z"
+    },
+    {
+      "id": 4,
+      "title": "stage 5: triage emacs-config-deprecated — keep or drop, item by item",
+      "state": "done",
+      "branch": "main",
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-12T22:14:43.604949186Z",
+      "updated": "2026-11-16T18:23:44.068184547Z"
+    },
+    {
+      "id": 5,
+      "title": "verify first run on Windows and macOS (paths, .cmd, trash, no Nix)",
+      "state": "done",
+      "branch": "main",
+      "location": {
+        "file": "README.md"
+      },
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-12T23:30:55.918285408Z",
+      "updated": "2026-11-16T18:23:44.081516945Z"
+    },
+    {
+      "id": 6,
+      "title": "explain the 'End of buffer' message that appeared once in a GUI check, or prove it was leftover test daemons",
+      "state": "done",
+      "branch": "main",
+      "location": {
+        "file": "test/probe.el"
+      },
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-13T11:13:37.355788225Z",
+      "updated": "2026-11-16T18:23:44.097624145Z"
+    },
+    {
+      "id": 7,
+      "title": "stage 4: point treesit at the grammars already on this machine (via Nix treesit-grammars, not treesit-auto)",
+      "note": "plan.md §4: emacs.pkgs.treesit-grammars.with-all-grammars through home-manager, path added to treesit-extra-load-path. Never treesit-auto — that is old bug #35, which reverted unsaved buffers.",
+      "state": "todo",
+      "branch": "main",
+      "location": {
+        "file": "configs/ide/MANIFEST"
+      },
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-15T17:38:59.948977691Z",
+      "updated": "2026-11-16T18:23:44.146888895Z"
+    },
+    {
+      "id": 8,
+      "title": "STEP 1: clear the new repo's debt (plan.md §2 + §6 Step 1) — nothing in stages 2-5 starts first",
+      "note": "plan.md §6: 'Step 1 — clear the new repo's debt (one session).' The critique's central claim is that the process, not the code, is wrong: the manifesto's rules 5-8 are not in practice, HANDOFF.md re-explains everything so every session re-verifies it, and base/ breaks the config's own rule that base is profile-agnostic (plan.md §0 rule 4). Children are §6 Step 1 items 2-7 plus the §2 code rows small enough to land with them. #17 (Step 0 stopgap) is independent and can be done today.",
+      "state": "todo",
+      "branch": "main",
+      "actor": "particle",
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-16T18:23:48.730679910Z",
+      "updated": "2026-11-16T18:24:31.923931204Z"
+    },
+    {
+      "id": 9,
+      "title": "Replace HANDOFF.md (450 lines, re-explains everything) with a DECISIONS.md of at most ~60 lines: one line per decision + its number, marked 'settled — do not re-measure'. Narrative goes in commit messages.",
+      "note": "plan.md §2.3 + §8: 'Read §0 and DECISIONS.md. Treat both as settled. Don't re-measure anything DECISIONS.md lists.' The purpose is to stop every session re-verifying ground truths. Must be authored so a fresh agent trusts it.",
+      "state": "todo",
+      "parent": 8,
+      "branch": "main",
+      "actor": "particle",
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-16T18:24:11.687051896Z",
+      "updated": "2026-11-16T18:24:11.687051896Z"
+    },
+    {
+      "id": 10,
+      "title": "Adopt plan.md §2.1's measurement BUDGET: no measurement for built-ins and standard package config (vertico, orderless, marginalia, consult, savehist, recentf, eglot, magit); measure only per-keystroke/redisplay-path items, anything >5 ms of startup, or anything that feels slow; targets: startup <100 ms of our own code, keystroke <8 ms on the sefer, first open <300 ms in the daemon.",
+      "note": "plan.md §2 cause 1: 'Nothing gets in without a number' taken literally makes an agent measure use-short-answers instead of building the profile. Remove the Windows/macOS gate (cause 2) in the same session — stages 2 and 3 close for Linux.",
+      "state": "todo",
+      "parent": 8,
+      "branch": "main",
+      "actor": "particle",
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-16T18:24:11.701086990Z",
+      "updated": "2026-11-16T18:24:11.701086990Z"
+    },
+    {
+      "id": 11,
+      "title": "Move prose, footnotes and export out of base/ into shared/prose/; list them only in the hebrew and notes MANIFESTs; the ide profile must no longer turn font-lock off.",
+      "note": "plan.md §2 code row 1. base/prose.el:4 does (global-font-lock-mode -1) in every profile including ide, and base/prose.el:18 does (memq my/profile '(hebrew notes)). Both break rule 4 ('base is profile-agnostic'). ALSO: re-enable font-lock per the re-test — §2 row 2 says colour on English prose is nearly free (3.9→4.7 ms/keystroke; the 3.5 s cost was the footnote keyword, already stripped); the budget target is keystroke <8 ms. Ideally at least font-lock-maximum-decoration 1.",
+      "state": "todo",
+      "parent": 8,
+      "branch": "main",
+      "actor": "particle",
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-16T18:24:11.717160507Z",
+      "updated": "2026-11-16T18:24:11.717160507Z"
+    },
+    {
+      "id": 12,
+      "title": "Make the footnote-label overlay follow hook buffer-local instead of a global post-command-hook.",
+      "note": "plan.md §2 code row 3. configs/hebrew/modules/display.el:63 (add-hook 'post-command-hook #'my/rtl-footnote-labels-follow) runs after every command in every buffer of the hebrew profile. Use (add-hook 'post-command-hook #'my/rtl-footnote-labels-follow nil t) set from org-mode-hook.",
+      "state": "todo",
+      "parent": 8,
+      "branch": "main",
+      "actor": "particle",
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-16T18:24:11.740147559Z",
+      "updated": "2026-11-16T18:24:11.740147559Z"
+    },
+    {
+      "id": 13,
+      "title": "Drop the literate .org layer: keep the .el files, delete the .org sources, bin/build.el and the --check staleness path. Reasoning moves to DECISIONS.md, narrative to commit messages.",
+      "note": "plan.md §2 code row 5 + §6 Step 1 item 4: every 20-line module carries a 100-line org file, so each change is edit→tangle→build→check; the old config had the same duplication and it is part of why it got unmaintainable.",
+      "state": "todo",
+      "parent": 8,
+      "branch": "main",
+      "actor": "particle",
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-16T18:24:11.756150431Z",
+      "updated": "2026-11-16T18:24:11.756150431Z"
+    },
+    {
+      "id": 14,
+      "title": "Delete test/probe.el, bin/gui-test.sh, the messages-log silence checks and state/rtl/. Keep test/export-*.el and invariants.el.",
+      "note": "plan.md §2 code row 7: infrastructure for proving a startup is silent. plan.md §2 rightly says the export tests guard real behaviour; a short invariants.el is the ceiling.",
+      "state": "todo",
+      "parent": 8,
+      "branch": "main",
+      "actor": "particle",
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-16T18:24:11.771452347Z",
+      "updated": "2026-11-16T18:24:11.771452347Z"
+    },
+    {
+      "id": 15,
+      "title": "Replace the hand-rolled package activator (my/autoload reading -autoloads.el files) with built-in use-package + (package-quickstart t). Vendor only what we patch (ox-typst); olivetti can be a normal package.",
+      "note": "plan.md §2 code row 4: the activator dodges a '~200 ms' package-initialize. package-quickstart drops activation to ~10-30 ms (TEST it, budget §2.1). This is where adding vertico becomes one line.",
+      "state": "todo",
+      "parent": 8,
+      "branch": "main",
+      "actor": "particle",
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-16T18:24:11.787422303Z",
+      "updated": "2026-11-16T18:24:11.787422303Z"
+    },
+    {
+      "id": 16,
+      "title": "Simplify the deferred-mode machinery: one run-with-idle-timer (or just enable delete-selection-mode and which-key at init) instead of an idle-timer + wall-clock fallback + idempotence flag. And early-init.el: use frame parameters for menu/tool/scroll bars.",
+      "note": "plan.md §2 code rows 6+8. base/core.el:42-73: 3 pieces (timer + wall-clock fallback + my/idle-modes-started flag) to defer delete-selection-mode and which-key. plan.md: 'delete-selection-mode and which-key cost almost nothing once native-compiled.' early-init.el:29-31 use function calls (menu-bar-mode -1); best practice is (push '(menu-bar-lines . 0) default-frame-alist) etc. — avoids one resize, documented way.",
+      "state": "todo",
+      "parent": 8,
+      "branch": "main",
+      "actor": "particle",
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-16T18:24:11.800797554Z",
+      "updated": "2026-11-16T18:24:11.800797554Z"
+    },
+    {
+      "id": 17,
+      "title": "STEP 0: paste plan.md §1's stopgap into ~/.config/emacs/custom.el (bidi-paragraph-direction nil, bidi-inhibit-bpa nil, org-footnote-auto-adjust nil, org-startup-indented nil, remove valign/org-modern hooks, strip org-activate-footnote-links, undo-tree off). Test: hold C-n for 2 s on the big sefer, then type mid-footnote. Stop after that.",
+      "note": "plan.md §6 Step 0 + §1: ~5 minutes, no rebuild, makes the DAILY editor usable while the new repo is built. Measured payoff: forced bidi direction is 286 ms/line and 96 ms/keystroke; org-footnote-auto-adjust is 863 ms/footnote; org footnote font-lock is 38 ms/keystroke.",
+      "state": "todo",
+      "location": {
+        "file": "/home/shaul/.config/emacs/custom.el"
+      },
+      "actor": "particle",
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-16T18:24:24.119716453Z",
+      "updated": "2026-11-16T18:24:24.119716453Z"
+    },
+    {
+      "id": 18,
+      "title": "STEP 5: retire the old config — point ~/.config/emacs (home-manager) at this repo, or launch bin/emacs-hebrew from the WM, and archive ~/emacs-config as emacs-config-deprecated.",
+      "note": "plan.md §6 Step 5. Cannot start until #1 has been used daily for a week (rule 8: 'Use it daily, or it isn't done').",
+      "state": "todo",
+      "branch": "main",
+      "location": {
+        "file": "README.md"
+      },
+      "actor": "particle",
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-16T18:24:24.135872472Z",
+      "updated": "2026-11-16T18:24:24.135872472Z"
+    },
+    {
+      "id": 19,
+      "title": "DECIDE §9.2: org-roam / citar / academic — do you use roam links between the 689 files, or citations? If not they go (worth -3.4 s of startup in the old config).",
+      "note": "plan.md §9 question 2, and §5 triage row 'ask'. Unblocks whether org-roam-db-autosync is ever needed, which is the single largest startup cost measured in the old config (3410 ms).",
+      "state": "todo",
+      "parent": 24,
+      "actor": "particle",
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-16T18:24:24.158431586Z",
+      "updated": "2026-11-16T18:24:38.074989806Z"
+    },
+    {
+      "id": 20,
+      "title": "DECIDE §9.3: which 3-5 commands from 10-...16-seforim-* (2000 lines) do you actually press? Everything else can go in favour of consult-ripgrep over the 28,827-file library.",
+      "note": "plan.md §9 question 3 + §5 triage row 'ask'. Answer from real keybindings in ~/emacs-config, not from memory.",
+      "state": "todo",
+      "parent": 24,
+      "actor": "particle",
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-16T18:24:24.170428854Z",
+      "updated": "2026-11-16T18:24:38.106573750Z"
+    },
+    {
+      "id": 21,
+      "title": "DECIDE §9.4: gptel / local AI inside Emacs — used or not? Lazy if kept.",
+      "note": "plan.md §9 question 4 + §5 triage row 'ask'.",
+      "state": "todo",
+      "parent": 24,
+      "actor": "particle",
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-16T18:24:24.182988683Z",
+      "updated": "2026-11-16T18:24:38.138119626Z"
+    },
+    {
+      "id": 22,
+      "title": "DECIDE §9.5: the old C-c s niqqud-insensitive search — is that the behaviour you want, or did it miss things? Decides whether it is ported or rewritten for the hebrew profile.",
+      "note": "plan.md §9 question 5 + §4. Note plan.md's finding that built-in char-fold does NOT do this, because niqqud are combining marks BETWEEN letters — the core is turning בר into ב[֑-ׇ]*ר.",
+      "state": "todo",
+      "parent": 24,
+      "actor": "particle",
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-16T18:24:24.195078248Z",
+      "updated": "2026-11-16T18:24:38.184526762Z"
+    },
+    {
+      "id": 23,
+      "title": "DECIDE §9.6: keys you cannot live without from the old config (avy, multiple-cursors, hydras?) — five at most.",
+      "note": "plan.md §9 question 6 + §5 triage. Determines which of avy/multiple-cursors survive and whether transient/repeat-mode really covers the hydras.",
+      "state": "todo",
+      "parent": 24,
+      "actor": "particle",
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-16T18:24:24.210550344Z",
+      "updated": "2026-11-16T18:24:38.216927082Z"
+    },
+    {
+      "id": 24,
+      "title": "SETTLE the §9 questions — they decide code, so they come before #8 and #1",
+      "note": "plan.md §9 asks six questions; §8 says whoever works next reads §0 and DECISIONS.md and treats both as settled. #19-#23 are the five that remain open (§9.1 the Hebrew font is left to the machine: pick from what is installed, and the PDF already has its own face). §9.3 (#20) also gates #4's 'ask' rows on the 2000 lines of seforim modules. Where an answer exists in ~/emacs-config, read it from the bindings rather than asking again.",
+      "state": "todo",
+      "actor": "particle",
+      "origin": {
+        "kind": "manual"
+      },
+      "created": "2026-11-16T18:24:31.851896008Z",
+      "updated": "2026-11-16T18:24:31.851896008Z"
+    }
+  ],
+  "last_commit": "8a15c160159f4e10cbd147f92598f0a745cb3fcf"
+}
