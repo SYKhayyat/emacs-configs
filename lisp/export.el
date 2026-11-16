@@ -1,8 +1,11 @@
-;; -*- lexical-binding: t; -*-
+;;; export.el --- org to PDF through Typst -*- lexical-binding: t; -*-
+(defvar my/repo-root)
 
 ;; Commands without the code: `org-typst-export-to-pdf' and friends become
 ;; known here and the exporter itself loads on first use.
-(my/autoload "ox-typst")
+(let ((dir (expand-file-name "vendor/ox-typst" my/repo-root)))
+  (add-to-list 'load-path dir)
+  (load (expand-file-name "ox-typst-autoloads" dir) nil 'nomessage))
 
 ;; Number and list every heading level, not Emacs's three. Deeper headings are
 ;; rendered either way; the default only leaves them unnumbered and out of the
@@ -20,10 +23,7 @@ backwards.  Org's own `org-footnote-normalize' renumbers and re-sorts the
 definitions to match; this is just the promise that it runs, and that it runs on
 a copy, not on the file the user is editing."
   (require 'org)
-  (let ((t0 (when (bound-and-true-p my/bench) (float-time))))
-    (org-footnote-normalize)
-    (when (and (bound-and-true-p my/bench) t0)
-      (message "footnotes ordered in %.0f ms" (* 1000 (- (float-time) t0))))))
+  (org-footnote-normalize))
 
 (defun my/org-empty-footnote ()
   "Label of the first footnote definition in this buffer with no text, or nil.
@@ -108,3 +108,9 @@ whole-file operation."
 
 (with-eval-after-load 'ox-typst
   (advice-add 'org-typst-export-to-pdf :override #'my/org-typst-export-pdf))
+
+;; The document language, not the keyboard layout: it decides hyphenation and,
+;; with the vendored patch, whether Typst is told `dir: rtl' so a numbered
+;; heading in a Hebrew sefer aligns right like the text under it.
+(defvar my/profile)
+(setq org-export-default-language (if (eq my/profile 'hebrew) "he" "en"))

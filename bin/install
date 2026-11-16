@@ -1,0 +1,4 @@
+#!/bin/sh
+# Install the packages the config owns into elpa/. Run once per machine.
+root=$(cd "$(dirname "$0")/.." && pwd)
+exec emacs --batch -Q -l "$root/bin/install.el"

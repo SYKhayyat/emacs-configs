@@ -1,0 +1,12 @@
+#!/bin/sh
+# Run the invariants and export tests against each profile (batch).
+set -e
+root=$(cd "$(dirname "$0")/.." && pwd); cd "$root"
+for p in hebrew notes ide; do
+  emacs -Q --batch -l configs/$p/early-init.el --eval '(package-activate-all)' \
+    -l configs/$p/init.el -l test/invariants.el 2>&1 | grep -E "^(ok|FAIL|Error)"
+done
+for t in export-in-profile export-footnote-placement; do
+  emacs -Q --batch -l configs/hebrew/early-init.el --eval '(package-activate-all)' \
+    -l configs/hebrew/init.el -l test/$t.el 2>&1 | grep -E "^(ok|FAIL)"
+done
