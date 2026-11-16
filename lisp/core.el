@@ -1,4 +1,5 @@
-;;; core.el --- settings every profile shares -*- lexical-binding: t; -*-
+;;; core.el --- defaults and built-in modes every profile shares -*- lexical-binding: t; -*-
+;; Settings only. Paths of files Emacs writes are in files.el.
 (defvar my/state-dir)
 
 (defun my/restore-after-init ()
@@ -46,16 +47,7 @@
       undo-strong-limit (* 120 1024 1024)
       undo-outer-limit (* 300 1024 1024)
       large-file-warning-threshold (* 100 1024 1024)
-      recentf-max-saved-items 200
-      savehist-file (expand-file-name "savehist.el" my/state-dir)
-      recentf-save-file (expand-file-name "recentf.el" my/state-dir)
-      save-place-file (expand-file-name "places.el" my/state-dir)
-      bookmark-default-file (expand-file-name "bookmarks.el" my/state-dir)
-      project-list-file (expand-file-name "projects.el" my/state-dir)
-      tramp-persistency-file-name (expand-file-name "tramp.el" my/state-dir)
-      transient-history-file (expand-file-name "transient-history.el" my/state-dir)
-      eshell-directory-name (expand-file-name "eshell/" my/state-dir)
-      url-configuration-directory (expand-file-name "url/" my/state-dir))
+      recentf-max-saved-items 200)
 (setq-default indent-tabs-mode nil
               require-final-newline t
               word-wrap t)

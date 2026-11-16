@@ -33,3 +33,9 @@
 (setq inhibit-startup-screen t
       initial-scratch-message nil
       frame-inhibit-implied-resize t)
+
+(defun my/load-modules (modules)
+  "Load lisp/MODULE.el for each symbol in MODULES, in order.
+Every profile's init.el is just a call to this with its list."
+  (dolist (m modules)
+    (load (expand-file-name (format "lisp/%s.el" m) my/repo-root) nil 'nomessage)))

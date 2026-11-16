@@ -49,11 +49,4 @@
   :commands (org-download-clipboard org-download-yank org-download-screenshot)
   :init (setq org-download-image-dir "./images"))
 
-(use-package markdown-mode
-  :mode ("\\.md\\'" . markdown-mode))
-
-;; Spelling. Needs the enchant library (see README for each platform).
-(use-package jinx
-  :commands jinx-mode
-  :hook (text-mode . jinx-mode)
-  :bind ("M-$" . jinx-correct))
+;; Reading room, spelling and markdown are in writing.el.

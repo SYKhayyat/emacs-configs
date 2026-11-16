@@ -15,7 +15,7 @@ Run `bin/check` for the invariant and export tests.
 ## Layout
 
 - `configs/<profile>/early-init.el, init.el` — bind the profile, load `lisp/early.el`, then a module list.
-- `lisp/` — `early core files ui completion editing navigation prose footnotes rtl export ide reading`; `packages.el` is the package list.
+- `lisp/` — one job per file. Base: `early core files ui`. Editing: `completion editing navigation hydras`. Prose: `prose writing footnotes rtl search-hebrew export`. Code: `ide vcs typst terminal`. Extras: `reading ai`. `packages.el` is the package list.
 - `vendor/ox-typst` — patched Typst exporter (see its SOURCE.md).
 - `state/<profile>/` — runtime files (git-ignored). `elpa/` — packages (git-ignored).
 
