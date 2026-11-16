@@ -21,7 +21,6 @@ Run `bin/check` for the invariant and export tests.
 
 ## Native dependencies (not installable by package.el)
 
-- jinx (spelling): the enchant library + a C compiler (NixOS: `enchant`, Debian: `libenchant-2-dev`, macOS: `brew install enchant pkgconf`).
 - pdf-tools: poppler, autoconf, automake, a C++ compiler; it builds `epdfinfo` on first PDF.
 - typst CLI for export/preview; `nil` and `tinymist` for eglot; `rg`, `fd` for consult; `direnv` optional.
 

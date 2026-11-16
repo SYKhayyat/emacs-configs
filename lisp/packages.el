@@ -19,7 +19,7 @@
     ;; windows, files
     activities dirvish
     ;; prose (hebrew, notes)
-    olivetti valign org-modern org-download jinx markdown-mode nov
+    olivetti valign org-modern org-download markdown-mode nov
     ;; ide
     magit diff-hl git-timemachine projectile consult-projectile envrc
     nix-mode rust-mode cargo typst-ts-mode rainbow-delimiters

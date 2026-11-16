@@ -8,5 +8,5 @@
 - org-modern and valign only for buffers under 200 KB (aligned tables never slow a big sefer).
 - Typst is the single export path; export runs on a staged copy, PDF lands beside the source.
 - Replaced: undo-tree → vundo, git-gutter → diff-hl, anzu → built-in `isearch-lazy-count`, doom-themes/modeline → modus-operandi, rust-ts-mode → rust-mode (no grammar needed).
-- Dropped: seforim app, org-roam, citar, latex, web-search, 09-context, 22-nix-system, icons, pulsar, focus, treesit-auto (data-loss bug: it reverts buffers).
+- Dropped: spell checking (jinx: native dependency, more trouble than worth), seforim app, org-roam, citar, latex, web-search, 09-context, 22-nix-system, icons, pulsar, focus, treesit-auto (data-loss bug: it reverts buffers).
 - Undecided: eglot-java; whether query-replace needs an anzu-like count.
