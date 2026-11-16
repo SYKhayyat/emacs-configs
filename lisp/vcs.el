@@ -6,10 +6,11 @@
   :hook ((prog-mode . diff-hl-mode) (dired-mode . diff-hl-dired-mode)))
 (use-package git-timemachine :bind ("C-c v t" . git-timemachine))
 
-(use-package projectile
-  :bind-keymap ("C-c p" . projectile-command-map)
+;; Projects: built-in project.el on C-x p. Folders with a "Bavli" file count as roots
+;; even without git; every git repo under ~/Documents is remembered at startup.
+(use-package project
   :custom
-  (projectile-indexing-method 'alien)
-  (projectile-project-search-path '("~/Documents/"))
-  (projectile-known-projects-file (expand-file-name "projectile.eld" my/state-dir))
-  (projectile-project-root-files-bottom-up '("Bavli" ".projectile" ".git")))
+  (project-vc-extra-root-markers '("Bavli" ".project"))
+  :config
+  (when (file-directory-p "~/Documents/")
+    (project-remember-projects-under "~/Documents/")))

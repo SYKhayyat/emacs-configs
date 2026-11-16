@@ -36,10 +36,10 @@ still prompt one by one."
   "Split right and select the new window."
   (interactive) (select-window (split-window-right)))
 (defun my/project-in-new-tab ()
-  "Open a new tab and pick a projectile project in it."
+  "Open a new tab and pick a project in it."
   (interactive)
   (tab-bar-new-tab)
-  (call-interactively #'projectile-switch-project))
+  (call-interactively #'project-switch-project))
 
 (keymap-global-set "C-x K" #'my/kill-current-buffer)
 (keymap-global-set "C-c k" #'my/kill-other-buffers)
