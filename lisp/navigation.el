@@ -1,6 +1,6 @@
 ;;; navigation.el --- windows, tabs, buffers, files -*- lexical-binding: t; -*-
 
-(setq tab-bar-show 0
+(setq tab-bar-show 1
       tab-bar-new-tab-choice "*scratch*"
       dired-listing-switches "-al --group-directories-first"
       dired-dwim-target t)
