@@ -2,7 +2,7 @@
 
 (use-package corfu
   :hook (prog-mode . corfu-mode)
-  :custom (corfu-cycle t) (corfu-auto t) (corfu-auto-delay 0.2) (corfu-auto-prefix 2))
+  :custom (corfu-cycle t) (corfu-auto nil)) ; completion only when you press TAB
 
 (use-package eglot
   :hook ((python-mode rust-mode typst-ts-mode) . eglot-ensure)
