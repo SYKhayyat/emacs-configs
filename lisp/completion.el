@@ -66,9 +66,3 @@ No `file-directory-p' stat per candidate; the trailing slash is how
   :hook (embark-collect-mode . consult-preview-at-point-mode))
 
 (use-package wgrep :defer t :custom (wgrep-auto-save-buffer t))
-
-(use-package helpful
-  :bind (([remap describe-function] . helpful-callable)
-         ([remap describe-command] . helpful-command)
-         ([remap describe-variable] . helpful-variable)
-         ([remap describe-key] . helpful-key)))

@@ -14,8 +14,6 @@
     ;; editing
     avy ace-window multiple-cursors expand-region move-text goto-last-change
     beginend crux visual-regexp vundo yasnippet yasnippet-snippets
-    ;; help, keys
-    helpful
     ;; windows, files
     activities dirvish
     ;; prose (hebrew, notes)
