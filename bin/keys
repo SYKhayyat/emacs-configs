@@ -1,5 +1,5 @@
 #!/bin/sh
-# List every global key a profile defines (and the command and its one-line doc).
+# List every global key: first the ones the profile defines, then built-in Emacs.
 # usage: bin/keys <hebrew|notes|ide>
 set -eu
 root=$(cd "$(dirname "$0")/.." && pwd); cd "$root"
