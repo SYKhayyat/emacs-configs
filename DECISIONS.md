@@ -11,5 +11,5 @@
 - Typst is the single export path; export runs on a staged copy, PDF lands beside the source.
 - Dropped hydra: tab/writing commands have direct keys (`C-x t s` project in new tab, `C-c W` text width); `repeat-mode` covers repeats.
 - Replaced: undo-tree → vundo, git-gutter → diff-hl, anzu → built-in `isearch-lazy-count`, doom-themes/modeline → modus-operandi, rust-ts-mode → rust-mode (no grammar needed).
-- Dropped: envrc (no .envrc files in use), spell checking (jinx: native dependency, more trouble than worth), seforim app, org-roam, citar, latex, web-search, 09-context, 22-nix-system, icons, pulsar, focus, treesit-auto (data-loss bug: it reverts buffers).
+- Dropped: envrc, nix-mode (not wanted), spell checking (jinx: native dependency, more trouble than worth), seforim app, org-roam, citar, latex, web-search, 09-context, 22-nix-system, icons, pulsar, focus, treesit-auto (data-loss bug: it reverts buffers).
 - Undecided: eglot-java; whether query-replace needs an anzu-like count.

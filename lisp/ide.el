@@ -5,16 +5,14 @@
   :custom (corfu-cycle t) (corfu-auto t) (corfu-auto-delay 0.2) (corfu-auto-prefix 2))
 
 (use-package eglot
-  :hook ((python-mode rust-mode nix-mode typst-ts-mode) . eglot-ensure)
+  :hook ((python-mode rust-mode typst-ts-mode) . eglot-ensure)
   :custom
   (eglot-autoshutdown t)
   (eglot-send-changes-idle-time 0.5)
   (eglot-events-buffer-config '(:size 0))
   :config
-  (add-to-list 'eglot-server-programs '(typst-ts-mode . ("tinymist")))
-  (add-to-list 'eglot-server-programs '(nix-mode . ("nil"))))
+  (add-to-list 'eglot-server-programs '(typst-ts-mode . ("tinymist"))))
 
-(use-package nix-mode :mode "\\.nix\\'")
 (use-package rust-mode :mode "\\.rs\\'"
   :custom (rust-format-on-save t))
 (use-package cargo :hook (rust-mode . cargo-minor-mode))
