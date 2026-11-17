@@ -21,6 +21,7 @@
     ;; ide
     magit diff-hl git-timemachine
     rust-mode cargo typst-ts-mode rainbow-delimiters
-    ;; ai
+    ;; terminal, ai
+    eat
     gptel)
   "Packages installed into elpa/.")

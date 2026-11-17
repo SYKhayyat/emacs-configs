@@ -1,38 +1,49 @@
-;;; terminal.el --- shell panel in a bottom side window -*- lexical-binding: t; -*-
+;;; terminal.el --- eat terminal in a bottom side window -*- lexical-binding: t; -*-
 
-(defvar my/terminal-height 0.32)
+(defvar my/terminal-height 0.32 "Fraction of the frame the terminal panel takes.")
+
+(use-package eat
+  :commands (eat eat-other-window)
+  :custom
+  ;; Your login shell, not whatever `shell-file-name' happens to be.
+  (eat-shell (or (getenv "SHELL") shell-file-name))
+  :init
+  ;; Every eat buffer opens in the bottom panel.
+  (add-to-list 'display-buffer-alist
+               `("\\`\\*eat"
+                 (display-buffer-in-side-window)
+                 (side . bottom) (window-height . ,my/terminal-height))))
+
 (defun my/terminal--shells ()
-  (delq nil
-        (list (let ((ps (or (executable-find "pwsh") (executable-find "powershell"))))
-                (and ps (cons "PowerShell" ps)))
-              (let ((nu (executable-find "nu"))) (and nu (cons "Nushell" nu)))
-              (let ((b (executable-find "bash"))) (and b (cons "Bash" b))))))
+  "Alist of (NAME . PROGRAM) for the shells found: login shell first."
+  (let (out)
+    (dolist (c `(("login shell" . ,(or (getenv "SHELL") shell-file-name))
+                 ("Nushell" . "nu") ("Bash" . "bash")))
+      (when-let* ((exe (executable-find (cdr c))))
+        (unless (rassoc exe out) (push (cons (car c) exe) out))))
+    (nreverse out)))
+
 (defun my/new-terminal (&optional pick)
-  "New shell buffer; with PICK, choose the shell."
+  "Start another terminal in the bottom panel; with PICK, choose the shell."
   (interactive "P")
+  (require 'eat)
   (let* ((shells (my/terminal--shells))
-         (choice (if (and pick (cdr shells))
+         (choice (if pick
                      (assoc (completing-read "Shell: " (mapcar #'car shells) nil t) shells)
                    (car shells))))
-    (unless choice (user-error "No shell found"))
-    ;; shell.el defvars explicit-shell-file-name; bind it only once it is special,
-    ;; or the let below is lexical and shell.el's defvar then signals.
-    (require 'shell)
-    (let ((explicit-shell-file-name (cdr choice)) (shell-file-name (cdr choice)))
-      (shell (generate-new-buffer-name (format "*term:%s*" (car choice)))))))
+    (select-window (get-buffer-window (eat (cdr choice) t)))))
+
 (defun my/toggle-terminal ()
-  "Show, hide or start the bottom shell panel."
+  "Show, hide or start the bottom terminal panel."
   (interactive)
-  (let* ((buf (seq-find (lambda (b) (with-current-buffer b (derived-mode-p 'shell-mode)))
+  (require 'eat)
+  (let* ((buf (seq-find (lambda (b) (with-current-buffer b (derived-mode-p 'eat-mode)))
                         (buffer-list)))
          (win (and buf (get-buffer-window buf))))
     (cond (win (delete-window win))
-          (buf (select-window (display-buffer-in-side-window
-                               buf `((side . bottom) (window-height . ,my/terminal-height)))))
-          (t (let ((display-buffer-alist
-                    `(("\\*term:" (display-buffer-in-side-window)
-                       (side . bottom) (window-height . ,my/terminal-height)))))
-               (my/new-terminal))))))
+          (buf (select-window (display-buffer buf)))
+          (t (select-window (get-buffer-window (eat)))))))
+
 (keymap-global-set "C-`" #'my/toggle-terminal)
 (keymap-global-set "C-c t t" #'my/toggle-terminal)
 (keymap-global-set "C-c t n" #'my/new-terminal)

@@ -18,5 +18,5 @@ for p in hebrew notes; do
   for t in export-footnote-placement export-narrowed; do run $p $t; done
 done
 for p in hebrew; do run $p search-hebrew; done
-run ide terminal
+for p in hebrew notes ide; do run $p terminal; done
 exit $fail

@@ -13,3 +13,4 @@
 - Replaced: undo-tree → vundo, git-gutter → diff-hl, anzu → built-in `isearch-lazy-count`, doom-themes/modeline → modus-operandi, rust-ts-mode → rust-mode (no grammar needed).
 - Dropped: envrc, nix-mode, pdf-tools, nov (not wanted; pdf-tools had no built epdfinfo; add back when PDFs are read in Emacs), spell checking (jinx: native dependency, more trouble than worth), seforim app, org-roam, citar, latex, web-search, 09-context, 22-nix-system, icons, pulsar, focus, treesit-auto (data-loss bug: it reverts buffers).
 - Undecided: eglot-java; whether query-replace needs an anzu-like count.
+- Terminal: eat (pure Lisp, no compile) in every profile, bottom panel on `` C-` ``; login shell, `C-c t N` also offers Nushell and Bash. Rejected vterm (native build on NixOS) and vodik/cooked (Rust module built on first run, not on any package archive, young).
