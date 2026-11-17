@@ -13,8 +13,7 @@
 
 (defun my/org-pretty ()
   (when (< (buffer-size) my/pretty-max-size)
-    (org-modern-mode 1)
-    (valign-mode 1)))
+    (org-modern-mode 1)))
 
 (use-package org
   :defer t
@@ -44,7 +43,6 @@
 
 (use-package org-modern :commands org-modern-mode
   :custom (org-modern-star 'replace) (org-modern-table nil))
-(use-package valign :commands valign-mode)
 (use-package org-download
   :commands (org-download-clipboard org-download-yank org-download-screenshot)
   :init (setq org-download-image-dir "./images"))
