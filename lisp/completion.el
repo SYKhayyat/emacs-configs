@@ -67,6 +67,9 @@ No `file-directory-p' stat per candidate; the trailing slash is how
 (use-package embark
   :bind (("C-." . embark-act)
          ("C-;" . embark-dwim)
+         ;; F7: searchable cheatsheet of every key active right now (built-in,
+         ;; mode and mine), read from the live keymaps, so it cannot go stale.
+         ("<f7>" . embark-bindings)
          ("C-h B" . embark-bindings))
   :custom
   (prefix-help-command #'embark-prefix-help-command)
