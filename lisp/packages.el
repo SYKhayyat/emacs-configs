@@ -17,10 +17,10 @@
     ;; windows, files
     activities dirvish
     ;; prose (hebrew, notes)
-    olivetti org-modern org-download markdown-mode nov
+    olivetti org-modern org-download markdown-mode
     ;; ide
     magit diff-hl git-timemachine
     rust-mode cargo typst-ts-mode rainbow-delimiters
-    ;; reading, ai
-    pdf-tools gptel)
+    ;; ai
+    gptel)
   "Packages installed into elpa/.")
