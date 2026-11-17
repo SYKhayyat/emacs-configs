@@ -20,7 +20,7 @@
     olivetti org-modern org-download markdown-mode
     ;; ide
     magit diff-hl git-timemachine
-    rust-mode cargo typst-ts-mode rainbow-delimiters
+    rust-mode cargo rainbow-delimiters
     ;; terminal, ai
     eat
     gptel)

@@ -64,7 +64,7 @@
     ("Programming" nil prog-mode-map) ("Emacs Lisp" elisp-mode emacs-lisp-mode-map)
     ("Dired" dired dired-mode-map) ("Dirvish" dirvish dirvish-mode-map)
     ("Ibuffer" ibuffer ibuffer-mode-map) ("Shell" shell shell-mode-map)
-    ("Magit status" magit magit-status-mode-map) ("Typst" typst-ts-mode typst-ts-mode-map)
+    ("Magit status" magit magit-status-mode-map)
     ("Incremental search" nil isearch-mode-map) ("Minibuffer (vertico)" vertico vertico-map)
     ("Embark" embark embark-general-map))
   "(LABEL FEATURE MAP): FEATURE is required first (nil: already loaded).")

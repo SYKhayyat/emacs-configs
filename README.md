@@ -16,12 +16,12 @@ Run `bin/check` for the invariant and export tests, and `bin/keys <profile>` to 
 ## Layout
 
 - `configs/<profile>/early-init.el, init.el` — bind the profile, load `lisp/early.el`, then a module list.
-- `lisp/` — one job per file. Base: `early core files ui`. Editing: `completion editing navigation`; terminal (eat, every profile): `terminal`. Prose: `prose writing footnotes export`; Hebrew only: `rtl search-hebrew`. Code: `ide vcs typst`. Extras: `ai`. `packages.el` is the package list.
+- `lisp/` — one job per file. Base: `early core files ui`. Editing: `completion editing navigation`; terminal (eat, every profile): `terminal`. Prose: `prose writing footnotes export`; Hebrew only: `rtl search-hebrew`. Code: `ide vcs`. Extras: `ai`. `packages.el` is the package list.
 - `vendor/ox-typst` — patched Typst exporter (see its SOURCE.md).
 - `state/<profile>/` — runtime files (git-ignored). `elpa/` — packages (git-ignored).
 
 ## Native dependencies (not installable by package.el)
 
-- typst CLI for export/preview; `nil` and `tinymist` for eglot (tinymist starts in Typst buffers; `typst-ts-mode` also needs its tree-sitter grammar); `rg`, `fd` for consult.
+- typst CLI for export/preview; `rg`, `fd` for consult.
 
 See DECISIONS.md for what was chosen and why, FRICTION.md for annoyances, plan.md for the manifesto.
