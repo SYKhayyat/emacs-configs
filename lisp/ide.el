@@ -14,7 +14,6 @@
   (add-to-list 'eglot-server-programs '(typst-ts-mode . ("tinymist")))
   (add-to-list 'eglot-server-programs '(nix-mode . ("nil"))))
 
-(use-package envrc :hook (after-init . (lambda () (when (executable-find "direnv") (envrc-global-mode 1)))))
 (use-package nix-mode :mode "\\.nix\\'")
 (use-package rust-mode :mode "\\.rs\\'"
   :custom (rust-format-on-save t))

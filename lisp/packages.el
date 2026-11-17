@@ -19,7 +19,7 @@
     ;; prose (hebrew, notes)
     olivetti org-modern org-download markdown-mode nov
     ;; ide
-    magit diff-hl git-timemachine envrc
+    magit diff-hl git-timemachine
     nix-mode rust-mode cargo typst-ts-mode rainbow-delimiters
     ;; reading, ai
     pdf-tools gptel)
