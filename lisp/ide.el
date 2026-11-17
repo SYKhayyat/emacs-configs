@@ -5,9 +5,10 @@
   :custom (corfu-cycle t) (corfu-auto nil)) ; completion only when you press TAB
 
 (use-package eglot
-  :hook ((python-mode rust-mode) . eglot-ensure)
+  :hook ((python-mode rust-mode java-mode) . eglot-ensure)
   :custom
   (eglot-autoshutdown t)
+  (eglot-connect-timeout 120)  ; jdtls takes ~30 s on a cold start
   (eglot-send-changes-idle-time 0.5)
   (eglot-events-buffer-config '(:size 0)))
 
