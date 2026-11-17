@@ -32,6 +32,16 @@ No `file-directory-p' stat per candidate; the trailing slash is how
            (cond ((string-prefix-p "-" p) `(orderless-without-literal . ,(substring p 1)))
                  ((string-prefix-p "=" p) `(orderless-literal . ,(substring p 1))))))))
 
+(defun my/toggle-orderless ()
+  "Turn orderless matching on or off in completion lists (until restart)."
+  (interactive)
+  (if (memq 'orderless completion-styles)
+      (progn (setq completion-styles '(basic partial-completion))
+             (message "Orderless off: names match from the start"))
+    (setq completion-styles '(orderless basic))
+    (message "Orderless on: words match in any order")))
+(keymap-global-set "C-c o" #'my/toggle-orderless)
+
 (use-package marginalia :init (marginalia-mode 1))
 
 (use-package consult

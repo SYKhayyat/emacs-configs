@@ -19,4 +19,5 @@ for p in hebrew notes; do
 done
 for p in hebrew; do run $p search-hebrew; done
 for p in hebrew notes ide; do run $p terminal; done
+for p in hebrew notes ide; do run $p orderless-toggle; done
 exit $fail

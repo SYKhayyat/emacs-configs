@@ -1,0 +1,11 @@
+;;; orderless-toggle.el --- C-c o flips orderless off and back on -*- lexical-binding: t; -*-
+(let (bad)
+  (unless (eq (key-binding (kbd "C-c o")) #'my/toggle-orderless) (push "C-c o unbound" bad))
+  (unless (memq 'orderless completion-styles) (push "orderless not on at start" bad))
+  (let ((inhibit-message t))
+    (my/toggle-orderless)
+    (when (memq 'orderless completion-styles) (push "toggle did not turn it off" bad))
+    (my/toggle-orderless)
+    (unless (memq 'orderless completion-styles) (push "toggle did not turn it back on" bad)))
+  (if bad (progn (dolist (b bad) (message "FAIL orderless-toggle: %s" b)) (kill-emacs 1))
+    (message "ok   orderless-toggle")))
