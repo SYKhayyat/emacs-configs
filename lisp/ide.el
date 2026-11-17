@@ -20,3 +20,9 @@
   :custom (rust-format-on-save t))
 (use-package cargo :hook (rust-mode . cargo-minor-mode))
 (use-package rainbow-delimiters :hook (prog-mode . rainbow-delimiters-mode))
+
+;; Snippets: code only, so Org's TAB is left alone.
+(use-package yasnippet
+  :hook (prog-mode . yas-minor-mode)
+  :config (yas-reload-all))
+(use-package yasnippet-snippets :after yasnippet)

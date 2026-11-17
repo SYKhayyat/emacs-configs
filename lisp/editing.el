@@ -38,10 +38,5 @@
 (keymap-global-set "C-/" #'undo)
 (keymap-global-set "C-?" #'undo-redo)
 
-(use-package yasnippet
-  :hook ((prog-mode text-mode) . yas-minor-mode)
-  :config (yas-reload-all))
-(use-package yasnippet-snippets :after yasnippet)
-
 (keymap-global-set "C-c C-d" #'duplicate-dwim)
 (add-hook 'prog-mode-hook #'electric-pair-local-mode)
