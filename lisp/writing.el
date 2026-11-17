@@ -9,5 +9,6 @@
   (olivetti-mode 'toggle)
   (message "Reading room: %s" (if olivetti-mode "on" "off")))
 (keymap-global-set "C-c w" #'my/toggle-reading-room)
+(keymap-global-set "C-c W" #'olivetti-set-width)
 
 (use-package markdown-mode :mode ("\\.md\\'" . markdown-mode))

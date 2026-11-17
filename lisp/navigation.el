@@ -10,6 +10,7 @@
 (keymap-global-set "C-x t n" #'tab-bar-new-tab)
 (keymap-global-set "C-x t k" #'tab-bar-close-tab)
 (keymap-global-set "C-x t r" #'tab-bar-rename-tab)
+(keymap-global-set "C-x t s" #'my/project-in-new-tab)
 
 (defun my/kill-current-buffer ()
   "Kill the current buffer without asking which one."
