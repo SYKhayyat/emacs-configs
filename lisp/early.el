@@ -37,8 +37,9 @@
 (defun my/load-modules (modules)
   "Load lisp/MODULE.el for each symbol in MODULES, in order.
 Every profile's init.el is just a call to this with its list."
-  ;; No ".el": `load' then picks a lisp/X.elc when one exists (bin/compile), and
-  ;; load-prefer-newer keeps a stale .elc from shadowing an edited source.
+  ;; No ".el": `load' would use an .elc if one existed. None is built on purpose:
+  ;; init is ~0.27 s interpreted, and compiling modules that use Org macros
+  ;; without Org loaded leaves them unexpanded (invalid-function at run time).
   (let ((load-prefer-newer t))
     (dolist (m modules)
       (load (expand-file-name (format "lisp/%s" m) my/repo-root) nil 'nomessage)))

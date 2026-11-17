@@ -15,3 +15,4 @@
 - Dropped: typst-ts-mode and lisp/typst.el (no grammar installed, no .typ editing; export from Org still uses typst), envrc, nix-mode, pdf-tools, nov (not wanted; pdf-tools had no built epdfinfo; add back when PDFs are read in Emacs), spell checking (jinx: native dependency, more trouble than worth), seforim app, org-roam, citar, latex, web-search, 09-context, 22-nix-system, icons, pulsar, focus, treesit-auto (data-loss bug: it reverts buffers).
 - Undecided: eglot-java; whether query-replace needs an anzu-like count.
 - Terminal: eat (pure Lisp, no compile) in every profile, bottom panel on `` C-` ``; login shell, `C-c t N` also offers Nushell and Bash. Rejected vterm (native build on NixOS) and vodik/cooked (Rust module built on first run, not on any package archive, young).
+- Modules are not byte-compiled: startup is ~0.27 s, and compiling without Org loaded breaks Org macros (`org-with-wide-buffer`). custom.el loads last, as the one deliberate override layer.
