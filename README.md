@@ -11,7 +11,7 @@ set of modules in `lisp/`. The config owns its packages (package.el, into
     bin/launch.sh hebrew [file ...]    # or notes, ide; starts a per-profile daemon
 
 `bin/install.cmd` and `bin/launch.cmd` are the Windows equivalents.
-Run `bin/check` for the invariant and export tests, and `bin/keys <profile>` to list every global key (the profile's own first, then built-in Emacs, then each mode's own keys).
+Run `bin/check` for the invariant and export tests. Press `F7` in Emacs for a searchable list of every key active in the current buffer (built-in, mode and yours), read from the live keymaps.
 
 ## Layout
 
