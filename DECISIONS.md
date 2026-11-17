@@ -19,3 +19,4 @@
 - recentf excludes elpa/, state/, /tmp and export temp files; history-length 500 and kill-ring saved (no measurable startup cost). C-c r / C-c l force RTL / LTR per buffer (hebrew). Line numbers in prog-mode (ide). Tab bar shows only with 2+ tabs.
 - eglot: decline server file-watch requests (pyright hit the 10000-watch limit and looped reconnects). Added dired-jump/wdired, C-c c compile, M-n/M-p diagnostics. Hebrew: C-c d/B/h q/h p/h c/h n kept (new note is Org only). Completion-preview skipped (corfu on TAB).
 - F7 = embark-bindings: searchable cheatsheet from the live keymaps, includes built-in and mode keys. Hebrew helper keys (C-c d/B/h *) NOT wanted; only C-c r / C-c l kept.
+- exec-path-from-shell: installed, used on macOS only. Skipped: Org auto-fill (soft wrap), built-in tree-sitter modes.

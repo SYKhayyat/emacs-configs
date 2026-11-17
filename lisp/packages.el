@@ -23,5 +23,6 @@
     rust-mode cargo rainbow-delimiters slime
     ;; terminal, ai
     eat
-    gptel)
+    gptel
+    exec-path-from-shell)
   "Packages installed into elpa/.")

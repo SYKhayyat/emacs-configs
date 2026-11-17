@@ -70,3 +70,10 @@
 (setq which-key-idle-delay 0.5)
 (keymap-global-set "C-c <left>" #'winner-undo)
 (keymap-global-set "C-c <right>" #'winner-redo)
+
+;; macOS only: a Finder/Dock launch has a bare PATH, so copy the shell's (rg, fd,
+;; typst, language servers). On Linux the package is never loaded.
+(when (eq system-type 'darwin)
+  (require 'exec-path-from-shell nil t)
+  (when (fboundp 'exec-path-from-shell-initialize)
+    (exec-path-from-shell-initialize)))
