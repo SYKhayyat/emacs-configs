@@ -37,5 +37,16 @@
 (defun my/load-modules (modules)
   "Load lisp/MODULE.el for each symbol in MODULES, in order.
 Every profile's init.el is just a call to this with its list."
-  (dolist (m modules)
-    (load (expand-file-name (format "lisp/%s.el" m) my/repo-root) nil 'nomessage)))
+  ;; No ".el": `load' then picks a lisp/X.elc when one exists (bin/compile), and
+  ;; load-prefer-newer keeps a stale .elc from shadowing an edited source.
+  (let ((load-prefer-newer t))
+    (dolist (m modules)
+      (load (expand-file-name (format "lisp/%s" m) my/repo-root) nil 'nomessage)))
+  ;; Last, so Customize (custom.el in the state dir) is the one deliberate
+  ;; override layer on top of the modules, not a silently losing second owner.
+  (defvar custom-file)
+  (setq custom-file (expand-file-name "custom.el" my/state-dir))
+  (condition-case err
+      (load custom-file 'noerror 'nomessage)
+    (error (message "custom-file ignored (%s): %s"
+                    (error-message-string err) custom-file))))

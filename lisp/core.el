@@ -18,14 +18,6 @@
 (prefer-coding-system 'utf-8)
 (setq-default buffer-file-coding-system 'utf-8-unix)
 
-;; custom.el lives in the state dir. A corrupt one (Emacs writes it, so a crash
-;; can leave it half-written) must not stop Emacs from starting.
-(setq custom-file (expand-file-name "custom.el" my/state-dir))
-(condition-case err
-    (load custom-file 'noerror 'nomessage)
-  (error (message "custom-file ignored (%s): %s"
-                  (error-message-string err) custom-file)))
-
 ;; No forced paragraph direction: forcing one that does not match the text costs
 ;; 10-50x on wrapped Hebrew (measured, see DECISIONS.md).
 (setq-default bidi-paragraph-direction nil)

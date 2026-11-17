@@ -287,49 +287,36 @@ The rule for this list: needed, built-in where possible, lazy.
 
 Keep = it moves to the new repo, configured lazily. Drop = it does not come.
 
+Decided 2026-11-16, package by package with the user. Final list: `lisp/packages.el`; reasons: `DECISIONS.md`.
+
 | package / module | verdict | why |
 |---|---|---|
-| vertico, orderless, marginalia, consult | **keep** | see §4 |
-| embark, embark-consult | keep, later | useful, lazy; only once you miss it |
-| corfu | ide only, after trying `completion-preview-mode` | |
-| magit, eglot, envrc, nix-mode | **keep** (ide) | |
-| olivetti | already vendored | |
-| markdown-mode | keep (notes) | |
-| typst-ts-mode | keep (for editing `.typ` directly) | lazy |
-| wgrep | keep | edit consult-ripgrep results in place |
-| avy | keep if you use it | tiny, lazy |
-| multiple-cursors | keep if you use it | lazy |
-| jinx | retry (§4) | |
-| pdf-tools | keep, but **lazy** (`:magic "%PDF"`) | was 0.4 s at startup |
-| rust-mode, cargo | drop | `rust-ts-mode` + eglot |
-| treesit-auto | **drop** | data-loss bug #35 |
-| eglot-java | drop | #31 |
-| undo-tree | **drop** | slow on big buffers; built-in `undo-redo` (+ `vundo` if you want the tree) |
-| doom-modeline, doom-themes, nerd-icons, all-the-icons, all-the-icons-dired | **drop** | ~800 ms + per-command cost, rule 3 |
-| org-modern, valign, focus, pulsar, rainbow-delimiters, diminish | drop | cosmetics on the redisplay path |
-| gcmh | drop | early-init already owns GC; two owners (rule 10) |
-| projectile, consult-projectile | drop | `project.el` |
-| dirvish | drop | `dired` |
-| anzu | drop | `isearch-lazy-count` |
-| restart-emacs, editorconfig, which-key packages | drop | built in |
-| hydra (+ 23-hydras, 17-hydras) | drop | `transient` (built in) or `repeat-mode`; which-key shows prefixes |
-| helpful | drop | nice, not needed |
-| crux, move-text, expand-region, beginend, goto-last-change, visual-regexp | drop, and write the 2–3 commands you actually use as 5-line functions | each is a dependency for one keybinding |
-| yasnippet, yasnippet-snippets | drop; `tempel` if you miss snippets | yasnippet is heavy |
-| git-gutter, git-timemachine | drop; `diff-hl` later if missed | |
-| engine-mode, 21-web-search | drop | `browse-url` / `eww` |
-| org-roam, org-roam-ui, citar, citar-org-roam | **ask** (questions below) | 3.4 s at startup in the old config. If kept, lazy, and no `db-autosync` at startup |
-| gptel, 20-local-ai | ask | lazy if kept |
-| activities, 18-tabs, tab-bar | drop, or built-in `tab-bar` only | three daemons already give you separation |
-| 07-latex, 03-hebrew-typesetting, auctex | **drop** | one export path is Typst. The LaTeX path was the source of #33/#56/#57 |
-| 09-context | drop | |
-| 05-rich-footnotes, 02-hebrew-org | already superseded by `display.el` + `footnotes.el` | |
-| 00-hebrew, 01-hebrew-completion | mine for the niqqud search; drop the rest | |
-| 10–16 seforim-* (2,000 lines) | **ask** | most of it is consult-ripgrep + a few commands. List the 3–5 commands you actually press |
-| 22-nix-system | drop | do Nix from a shell |
-| 24-utils | read it once and keep the 2–3 functions you use | |
-
----
+| vertico, orderless, marginalia, consult, embark, embark-consult, wgrep | **keep** | completion stack; `C-c o` toggles orderless |
+| corfu | keep (ide), manual trigger only | `corfu-auto nil` |
+| magit, diff-hl, git-timemachine | keep (ide only) | |
+| eglot | keep (ide) | Python, Rust, Java |
+| rust-mode, cargo | **keep** (ide) | no tree-sitter grammar needed |
+| SLIME | keep (ide) | Common Lisp with sbcl |
+| rainbow-delimiters, yasnippet(+snippets) | keep (ide) | |
+| olivetti, org-modern, markdown-mode, org-download | keep | org-modern only under 200 KB |
+| avy, ace-window, multiple-cursors, expand-region, move-text, goto-last-change, beginend, crux, visual-regexp | keep | few losses, lazy |
+| vundo | keep | replaces undo-tree |
+| activities, dirvish | keep | |
+| eat | keep, every profile | terminal panel; rejected vterm and cooked |
+| gptel | keep | lazy |
+| envrc, nix-mode, typst-ts-mode, pdf-tools, nov | **dropped** | not used; add pdf-tools back when reading PDFs in Emacs |
+| valign, hydra, helpful, projectile (+consult-projectile) | dropped | `project.el`, `transient`, tables are rare |
+| treesit-auto | dropped | data-loss bug #35 |
+| eglot-java | dropped | #31 |
+| undo-tree, git-gutter, anzu | dropped | vundo, diff-hl, `isearch-lazy-count` |
+| doom-modeline, doom-themes, nerd-icons, all-the-icons(-dired), pulsar, focus, diminish, gcmh | dropped | cost on the redisplay path; early-init owns GC |
+| restart-emacs, editorconfig, which-key packages | dropped | built in |
+| engine-mode, 21-web-search | dropped | `browse-url` / `eww` |
+| org-roam(+ui), citar(+org-roam), jinx | dropped | startup cost; native dependency |
+| 07-latex, 03-hebrew-typesetting, auctex | dropped | Typst is the single export path |
+| 09-context, 22-nix-system, seforim-* (10-16) | dropped | |
+| 05-rich-footnotes, 02-hebrew-org | superseded by `display.el` + `footnotes.el` | |
+| 00-hebrew, 01-hebrew-completion, 24-utils | **not yet reviewed** | see the open list in the last session |
 
 ## 6. Order of work (debt first)
 

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Optional: byte-compile lisp/*.el. The loader prefers a newer .elc automatically.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+p=${1:-ide}
+emacs -Q --batch -l configs/$p/early-init.el --eval '(package-activate-all)' \
+  -f batch-byte-compile lisp/*.el
