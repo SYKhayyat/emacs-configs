@@ -55,4 +55,31 @@
     (princ (format "== Defined by the %s profile (%d) ==\n\n" profile (length mine)))
     (dolist (e (nreverse mine)) (princ (keys--line (car e) (cdr e))))
     (princ (format "\n== Built-in Emacs, global keymap (%d) ==\n\n" (length builtin)))
-    (dolist (e (nreverse builtin)) (princ (keys--line (car e) (cdr e))))))
+    (dolist (e (nreverse builtin)) (princ (keys--line (car e) (cdr e))))
+    (keys--report-modes)))
+
+(defconst keys--mode-maps
+  '(("Org" org org-mode-map) ("Org agenda" org-agenda org-agenda-mode-map)
+    ("Markdown" markdown-mode markdown-mode-map) ("Text" nil text-mode-map)
+    ("Programming" nil prog-mode-map) ("Emacs Lisp" elisp-mode emacs-lisp-mode-map)
+    ("Dired" dired dired-mode-map) ("Dirvish" dirvish dirvish-mode-map)
+    ("Ibuffer" ibuffer ibuffer-mode-map) ("Shell" shell shell-mode-map)
+    ("Magit status" magit magit-status-mode-map) ("Typst" typst-ts-mode typst-ts-mode-map)
+    ("PDF" pdf-view pdf-view-mode-map) ("EPUB" nov nov-mode-map)
+    ("Incremental search" nil isearch-mode-map) ("Minibuffer (vertico)" vertico vertico-map)
+    ("Embark" embark embark-general-map))
+  "(LABEL FEATURE MAP): FEATURE is required first (nil: already loaded).")
+
+(defun keys--report-modes ()
+  "Print the keys of each major mode's own map (without inherited ones)."
+  (dolist (m keys--mode-maps)
+    (let ((map-sym (nth 2 m)))
+      (when (nth 1 m) (ignore-errors (require (nth 1 m) nil t)))
+      (when (and (boundp map-sym) (keymapp (symbol-value map-sym)))
+        (let ((map (copy-keymap (symbol-value map-sym))))
+          (set-keymap-parent map nil)
+          (let ((rows (sort (keys--collect map [] nil)
+                            (lambda (a b) (string< (car a) (car b))))))
+            (when rows
+              (princ (format "\n== In %s (%d) ==\n\n" (car m) (length rows)))
+              (dolist (e rows) (princ (keys--line (car e) (cdr e)))))))))))
