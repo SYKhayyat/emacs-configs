@@ -29,6 +29,7 @@ hydra 20250316.1254
 inheritenv 20241119.1355
 llama 20261001.1538
 lv 20200507.1518
+macrostep 20250202.2205
 magit 20261113.1017
 magit-section 20261107.2107
 marginalia 20261010.1524
@@ -48,6 +49,7 @@ rainbow-delimiters 20210515.1254
 reformatter 20241204.1051
 rust-mode 20260725.1442
 s 20260522.135
+slime 20261108.2146
 tablist 20260623.1855
 typst-ts-mode 0.12.3
 valign 3.1.1
@@ -56,5 +58,6 @@ visual-regexp 20210502.2019
 vundo 2.4.0
 wgrep 20230203.1214
 with-editor 20261109.2119
+xterm-color 20260531.1854
 yasnippet 20250602.1342
 yasnippet-snippets 20251215.1231

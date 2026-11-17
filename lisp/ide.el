@@ -22,3 +22,10 @@
   :hook (prog-mode . yas-minor-mode)
   :config (yas-reload-all))
 (use-package yasnippet-snippets :after yasnippet)
+
+;; Common Lisp: SLIME talks to sbcl. M-x slime starts it; .lisp files enable slime-mode.
+(use-package slime
+  :commands (slime slime-connect)
+  :init (setq inferior-lisp-program "sbcl")
+  :custom (slime-contribs '(slime-fancy))
+  :config (setq slime-net-coding-system 'utf-8-unix))
