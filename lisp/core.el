@@ -39,7 +39,13 @@
       undo-strong-limit (* 120 1024 1024)
       undo-outer-limit (* 300 1024 1024)
       large-file-warning-threshold (* 100 1024 1024)
-      recentf-max-saved-items 200)
+      recentf-max-saved-items 200
+      history-length 500
+      savehist-additional-variables '(kill-ring)
+      ;; Files the config itself creates are not "recent".
+      recentf-exclude (list (concat "\\`" (regexp-quote (expand-file-name my/repo-root))
+                                    "\\(elpa\\|state\\)/")
+                            "\\`/tmp/" "\\.export-" "\\.typst-"))
 (setq-default indent-tabs-mode nil
               require-final-newline t
               word-wrap t)

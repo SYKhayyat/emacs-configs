@@ -43,3 +43,11 @@ direction, so the paragraph starts at the Hebrew after the label."
 ;; Buffer-local: only org buffers pay for it.
 (add-hook 'org-mode-hook
           (lambda () (add-hook 'post-command-hook #'my/rtl-footnote-labels-follow nil t)))
+
+;; Force a buffer's paragraph direction (per buffer, on demand; never automatic).
+(defun my/set-rtl () "Lay this buffer out right-to-left." (interactive)
+  (setq-local bidi-paragraph-direction 'right-to-left))
+(defun my/set-ltr () "Lay this buffer out left-to-right." (interactive)
+  (setq-local bidi-paragraph-direction 'left-to-right))
+(keymap-global-set "C-c r" #'my/set-rtl)
+(keymap-global-set "C-c l" #'my/set-ltr)

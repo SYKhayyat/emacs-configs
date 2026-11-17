@@ -1,5 +1,7 @@
 ;;; ide.el --- programming -*- lexical-binding: t; -*-
 
+(add-hook 'prog-mode-hook #'display-line-numbers-mode)
+
 (use-package corfu
   :hook (prog-mode . corfu-mode)
   :custom (corfu-cycle t) (corfu-auto nil)) ; completion only when you press TAB
