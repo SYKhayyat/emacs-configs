@@ -85,3 +85,9 @@ still prompt one by one."
   (dirvish-attributes '(file-size))   ; no icons: they cost per-file work
   (dirvish-quick-access-entries
    '(("h" "~/" "Home") ("d" "~/Documents/" "Documents") ("D" "~/Downloads/" "Downloads"))))
+
+;; dired-x: C-x C-j opens the folder of the current file. wdired: in Dired,
+;; C-x C-q makes names editable like text, C-c C-c saves the renames.
+(use-package dired-x :ensure nil :commands (dired-jump) :bind ("C-x C-j" . dired-jump))
+(with-eval-after-load 'dired
+  (keymap-set dired-mode-map "C-x C-q" #'wdired-change-to-wdired-mode))

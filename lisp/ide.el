@@ -14,6 +14,15 @@
   (eglot-send-changes-idle-time 0.5)
   (eglot-events-buffer-config '(:size 0)))
 
+;; Servers (pyright especially) ask Emacs to watch every file under the project.
+;; In a big tree that hits the 10000-watch limit, floods warnings and loops
+;; reconnects. Editing does not need it, so decline the request.
+(with-eval-after-load 'eglot
+  (advice-add 'eglot-register-capability :around
+              (lambda (orig server method &rest args)
+                (unless (eq method 'workspace/didChangeWatchedFiles)
+                  (apply orig server method args)))))
+
 (use-package rust-mode :mode "\\.rs\\'"
   :custom (rust-format-on-save t))
 (use-package cargo :hook (rust-mode . cargo-minor-mode))
@@ -31,3 +40,12 @@
   :init (setq inferior-lisp-program "sbcl")
   :custom (slime-contribs '(slime-fancy))
   :config (setq slime-net-coding-system 'utf-8-unix))
+
+;; Build: C-c c runs a compile command in the project root; errors are clickable.
+(keymap-global-set "C-c c" #'project-compile)
+(keymap-global-set "C-c C" #'recompile)
+;; Jump between diagnostics (Eglot shows them through Flymake).
+(with-eval-after-load 'flymake
+  (keymap-set flymake-mode-map "M-n" #'flymake-goto-next-error)
+  (keymap-set flymake-mode-map "M-p" #'flymake-goto-prev-error))
+(add-hook 'sh-mode-hook #'flymake-mode)  ; lint plain shell scripts too

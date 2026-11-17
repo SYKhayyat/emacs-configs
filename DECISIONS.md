@@ -17,3 +17,4 @@
 - Terminal: eat (pure Lisp, no compile) in every profile, bottom panel on `` C-` ``; login shell, `C-c t N` also offers Nushell and Bash. Rejected vterm (native build on NixOS) and vodik/cooked (Rust module built on first run, not on any package archive, young).
 - Modules are not byte-compiled: startup is ~0.27 s, and compiling without Org loaded breaks Org macros (`org-with-wide-buffer`). custom.el loads last, as the one deliberate override layer.
 - recentf excludes elpa/, state/, /tmp and export temp files; history-length 500 and kill-ring saved (no measurable startup cost). C-c r / C-c l force RTL / LTR per buffer (hebrew). Line numbers in prog-mode (ide). Tab bar shows only with 2+ tabs.
+- eglot: decline server file-watch requests (pyright hit the 10000-watch limit and looped reconnects). Added dired-jump/wdired, C-c c compile, M-n/M-p diagnostics. Hebrew: C-c d/B/h q/h p/h c/h n kept (new note is Org only). Completion-preview skipped (corfu on TAB).
