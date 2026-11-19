@@ -134,8 +134,11 @@ which is why only the word being looked for is reversed here, not both sides."
         (let* ((org (expand-file-name "notes.org" work))
                (pdf (expand-file-name "notes.pdf" work))
                (bbox (expand-file-name "notes.xml" work)))
-          (copy-file (expand-file-name (concat "test/export/fixtures/" fixture) root)
-                     org t)
+          ;; Not `copy-file': it always copies the mode, and the fixture read out
+          ;; of the pinned tree is 0444, a mode the export could not save over.
+          (with-temp-file org
+            (insert-file-contents (expand-file-name (concat "test/export/fixtures/" fixture)
+                                                    root)))
           (with-current-buffer (find-file-noselect org)
             (condition-case err
                 (let ((inhibit-message t)) (my/org-typst-export-pdf))

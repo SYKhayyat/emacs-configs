@@ -32,6 +32,15 @@
   "The exporter's temporary working files in the system temp directory."
   (directory-files temporary-file-directory t "\\`org-typst-"))
 
+;; Not `copy-file': it always copies the mode (its docstring: "always sets the
+;; file modes of the output file to match the input file"), and a fixture read
+;; out of the pinned tree is 0444 because the store is. A copy at that mode
+;; is one this test cannot then rewrite — "Opening output file: Permission
+;; denied" — and no argument turns the copying of the bits off.
+(defun my/export-test--copy-fixture (from to)
+  "Write fixture FROM to TO as a copy the test can save over."
+  (with-temp-file to (insert-file-contents from)))
+
 (defun my/export-test--with-file (org fn)
   "Call FN in a buffer visiting ORG, then close the buffer without saving."
   (unwind-protect
@@ -51,7 +60,8 @@
   (unwind-protect
       (progn
         ;; ---- 1. one PDF, nothing else -----------------------------------
-        (copy-file (expand-file-name "test/export/fixtures/03-footnotes.org" root) src t)
+        (my/export-test--copy-fixture
+         (expand-file-name "test/export/fixtures/03-footnotes.org" root) src)
         (my/export-test--with-file
          src
          (lambda ()
@@ -84,8 +94,9 @@
                (doc (expand-file-name (if hebrew-p "hebrew.org" "english.org") work)))
           (if hebrew-p
               (progn
-                (copy-file (expand-file-name "test/export/fixtures/08-hebrew-rtl.org" root)
-                           doc t)
+                (my/export-test--copy-fixture
+                 (expand-file-name "test/export/fixtures/08-hebrew-rtl.org" root)
+                 doc)
                 ;; The fixture names its own language so that the exporter-level
                 ;; check (no profile loaded) can exercise the RTL branch. Here
                 ;; the profile's default must decide, so the keyword goes:
@@ -129,7 +140,8 @@
         ;; section yields backwards numbers. The export must stage and
         ;; renumber; the source file must be untouched.
         (let ((oo (expand-file-name "outoforder.org" work)))
-          (copy-file (expand-file-name "test/export/fixtures/10-footnotes-out-of-order.org" root) oo t)
+          (my/export-test--copy-fixture
+           (expand-file-name "test/export/fixtures/10-footnotes-out-of-order.org" root) oo)
           (let ((before (with-temp-buffer (insert-file-contents oo) (buffer-string)))
                 (typst nil))
             (my/export-test--with-file
