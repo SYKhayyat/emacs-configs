@@ -20,10 +20,14 @@ root=${EMACS_CONFIG_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}
 profile=${1:?usage: launch.sh <profile> [file ...]}
 shift || true
 
+# A profile is a directory under configs/, so adding one needs no change here.
+# Names with a slash or a leading dot are refused before the lookup, so the
+# argument cannot reach outside configs/.
 case "$profile" in
-  hebrew|notes|ide) ;;
-  *) echo "unknown profile: $profile" >&2; exit 2 ;;
+  ''|.*|*/*) echo "unknown profile: $profile" >&2; exit 2 ;;
 esac
+[ -d "$root/configs/$profile" ] || {
+  echo "unknown profile: $profile (no $root/configs/$profile)" >&2; exit 2; }
 
 command -v emacsclient >/dev/null 2>&1 || {
   echo "emacsclient not found; cannot use the daemon" >&2; exit 3; }
