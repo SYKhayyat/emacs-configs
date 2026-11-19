@@ -5,5 +5,5 @@
 (load-theme 'modus-operandi t)
 
 ;; Hebrew glyphs from one fixed family, so Emacs does not search fonts per run.
-(when (eq my/profile 'hebrew)
-  (set-fontset-font t 'hebrew (font-spec :family "Noto Serif Hebrew")))
+;; Every profile: notes and code contain Hebrew too.
+(set-fontset-font t 'hebrew (font-spec :family "Noto Serif Hebrew"))

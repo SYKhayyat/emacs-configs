@@ -23,4 +23,37 @@ for p in hebrew; do run $p search-hebrew; done
 for p in hebrew notes; do run $p bidi; done
 for p in hebrew notes ide; do run $p terminal; done
 for p in hebrew notes ide; do run $p orderless-toggle; done
+
+# Daemon smoke test: what batch cannot see -- the daemon path launch.sh uses,
+# a buffer shown in a window, redisplay. A throwaway daemon per profile on its
+# own socket dir, so it cannot collide with the real emacs-<profile> servers.
+smoke() { # profile
+  local p=$1 rt out
+  rt=$(mktemp -d)
+  if ! XDG_RUNTIME_DIR=$rt emacs --init-directory="$root/configs/$p" \
+         --daemon="check-$p" >/dev/null 2>&1; then
+    echo "FAIL daemon ($p): did not start"; fail=1; rm -rf "$rt"; return
+  fi
+  out=$(XDG_RUNTIME_DIR=$rt emacsclient -s "check-$p" \
+          --eval "(progn (load \"$root/test/daemon-smoke.el\" nil t) (my/daemon-smoke))" 2>&1)
+  if [ "$p" = hebrew ] && [ "$out" = '"ok"' ] && command -v script >/dev/null; then
+    # A real (tty) frame under a pty, so redisplay runs and the labels must
+    # appear with no command typed.
+    # vt100: no terminal queries to answer.
+    TERM=vt100 XDG_RUNTIME_DIR=$rt timeout 20 script -qec "stty rows 40 cols 100; \
+      emacsclient -s check-$p -t --eval '(my/daemon-smoke-shown \"$rt/labels\")'" \
+      /dev/null </dev/null >/dev/null 2>&1
+    [ "$(cat "$rt/labels" 2>/dev/null)" = 1 ] ||
+      out="footnote label not built before the first command (got: $(cat "$rt/labels" 2>/dev/null))"
+  fi
+  # Skip kill-emacs-hook: it would save this daemon's history over the real one.
+  XDG_RUNTIME_DIR=$rt emacsclient -s "check-$p" \
+    --eval '(let (kill-emacs-hook) (kill-emacs))' >/dev/null 2>&1
+  rm -rf "$rt"
+  case $out in
+    '"ok'*) echo "ok daemon ($p)" ;;
+    *) echo "FAIL daemon ($p): $out"; fail=1 ;;
+  esac
+}
+for p in hebrew notes ide; do smoke $p; done
 exit $fail

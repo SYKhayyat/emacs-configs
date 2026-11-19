@@ -1,755 +1,539 @@
-# Audit — emacs-configs
+# Emacs configs — audit, 2026-11-19
 
-2026-11-16. Emacs 31.1 (pgtk), Linux/Wayland, NixOS. No configuration file was
-modified for this audit; this document is the only addition.
+This audit covers correctness and performance for the whole setup: the shared base (`lisp/`, `bin/`, `test/`, `lisp/early.el`), the three profiles (hebrew, notes, ide), and the Nix deployment in `~/config`. It replaces the 2026-11-16 audit, which is still in git history.
 
-What I did: read every file in `lisp/`, the three profiles, `bin/`, `test/` and
-`vendor/ox-typst`; ran `bin/check`; byte-compiled every module with the real
-`load-path`; measured startup, daemon readiness and keystroke cost; and ran
-targeted probes for the terminal, export, search and sorting behaviour. Claims
-below marked ✅ were reproduced; ⚠️ means by reading the code; ❓ is a decision
-for you.
+Every finding has a severity, evidence, and a proposed fix.
 
-`bin/check` passes today in all three profiles, so everything here is on top of
-a green baseline.
+- **P0**: wrong or broken right now.
+- **P1**: a real cost you feel, or a trap.
+- **P2**: hygiene.
 
----
+The timings come from throwaway Emacs 30.2 daemons running in a 50×140 tty under `script`, with the real elpa and the real profile init. The GUI (pgtk) redisplay costs more. The *relative* numbers carry over, but confirm in the GUI with `M-x profiler-start` → cpu → type for 30 s → `M-x profiler-report`.
 
-## 0. Verdict
+## Verdict
 
-The skeleton is good: one job per file, profiles are thin lists, packages are
-owned by the repo, `package-quickstart` is on, the export works on a staged
-copy, and the vendored `ox-typst` patch is documented and tested. The Hebrew
-performance findings in `DECISIONS.md` are real and the RTL overlay is cheap
-(measured below).
+The config itself is in good shape:
 
-The problems are concentrated in four places:
+- the module split is clean;
+- startup GC and file-handler handling are right;
+- custom.el loads last;
+- `bin/install` fails loudly;
+- the bidi changes add nothing per keystroke.
 
-1. **A hard bug in the terminal**: the first `C-`` / `C-c t t` in a daemon
-   errors out and no shell starts.
-2. **Silent wrong output**: exporting a narrowed Org buffer exports only the
-   narrowed text.
-3. **The harness can report success when a test fails**, and the notes profile
-   is not actually exercised by the export tests.
-4. **Drift between documents and code**: `DECISIONS.md`, `plan.md`, `README.md`
-   and `packages.el` describe a configuration that is partly not this one.
+The errors you saw (`transient--set-layout`, `set-local` void) are **not in the config**. They are **stale daemons** still running from the old `~/emacs-configs` tree. That tree's elpa has no transient, keeps orphan packages, and loads the stub compat. Restarting fixes them (B1).
 
-Then the smaller items: the `notes` profile is a copy of `hebrew`, several
-"lazy" things load at startup, and the buffer/file search list is sorted by
-recency, not folder-first alphabetical (your explicit preference — see §5).
+The per-keystroke slowness has three measurable sources, listed by size:
 
----
+1. Redisplay of long bidi lines. This is inherent and mostly not fixable from config.
+2. The footnote-label `post-command-hook`, which rebuilds every label on every typed character. It is fixable, and I measured the fix (H1).
+3. Periodic 50–80 ms GC pauses. These are fixable (B4).
 
-## 1. Confirmed bugs (fix these first)
+Separately, opening the minibuffer has a 0.4 s sort hiding in it (B3).
 
-### 1.1 The terminal cannot start the first time — hard error ✅
+## Order of work
 
-`lisp/terminal.el:18` binds `explicit-shell-file-name` before `shell.el` has
-been loaded:
-
-```elisp
-(let ((explicit-shell-file-name (cdr choice)) (shell-file-name (cdr choice)))
-  (shell (generate-new-buffer-name ...)))
-```
-
-`explicit-shell-file-name` is `defvar`ed by `shell.el`, which is not loaded at
-that point.  The `let` therefore creates a *lexical* binding, and when `shell`
-autoloads `shell.el`, that file's `defvar` signals:
-
-```
-*ERROR*: Defining as dynamic an already lexical var: explicit-shell-file-name
-```
-
-Reproduced by loading the `ide` profile and calling `my/new-terminal`: no
-shell buffer, no process. `my/toggle-terminal` calls the same function, so
-`C-`` and `C-c t t` fail on first use in every session.
-
-The byte-compiler already warned about this: `Unused lexical variable
-'explicit-shell-file-name'` — the binding really is lexical.
-
-Fix (do not need to be clever): `(require 'shell)` at the top of
-`terminal.el` (or bind only `shell-file-name`, which is a C variable and always
-special, or add `(defvar explicit-shell-file-name)`). With `(require 'shell)`
-first, the same test starts `nu -i` correctly via `shell-file-name`.
-
-### 1.2 Exporting a narrowed buffer silently drops the rest of the file ✅
-
-`lisp/export.el:82` stages the buffer with
-
-```elisp
-(buffer-substring-no-properties (point-min) (point-max))
-```
-
-and `buffer-substring-no-properties` respects narrowing.  The empty-footnote
-check wraps itself in `org-with-wide-buffer`, but the staging copy does not.
-
-Reproduced: a two-heading file, `org-narrow-to-subtree` on the second heading,
-then `my/org-typst-export-pdf`.  The PDF contained `1. Second` only; `First`
-was gone, with no warning.  This is a data-loss-shaped bug (the source is safe,
-but the PDF silently is not the document).
-
-Fix: `(org-with-wide-buffer (buffer-substring-no-properties (point-min)
-(point-max)))` for the staging copy (and decide whether `subtreep` should keep
-the narrowing, which is a different case).
-
-### 1.3 Async export is broken ✅
-
-`my/org-typst-export-pdf` passes `async` to `org-typst-export-as-typst`, then
-immediately reads `org-typst-export-buffer-name` and compiles synchronously.
-With `async` non-nil the export has not produced that buffer yet.
-
-Reproduced: `(org-typst-export-to-pdf t)` signals
-`(wrong-type-argument stringp nil)` and leaves no PDF.  Default `C-c C-e` does
-not pass async, so this is not hit daily, but `org-export-in-background` or any
-caller that requests async will fail.  Either implement the async path (compile
-in the export process's sentinel) or reject `async` with a `user-error`.
-
-### 1.4 `bin/check` can exit 0 when a test fails ✅
-
-`bin/check:7` and `:11` pipe Emacs into `grep`:
-
-```sh
-emacs ... | grep -E "^(ok|FAIL|Error)"
-```
-
-The pipeline's status is `grep`'s, not Emacs's.  `set -e` therefore does not
-help.  A synthetic test that prints `FAIL ...` and calls `(kill-emacs 1)` makes
-the pipeline exit 0; the failure is printed but the script still succeeds.
-Anything automated (CI, a pre-commit hook) will treat that as a pass.
-
-Also:
-
-- `bin/check:9` runs `export-in-profile` and `export-footnote-placement` only
-  against **hebrew**.  The footnote-placement test explicitly documents and
-  supports `notes` too (`test/export-footnote-placement.el` header), but the
-  notes branch never runs.
-- The tests load modules with `-l`, so `emacs-startup-hook` never runs.
-  `test/invariants.el` calls `my/restore-after-init` by hand, but nothing
-  verifies that `savehist`, `recentf`, `save-place`, `winner`, `which-key`,
-  etc. are actually enabled.
-
-Fix: use `bash` + `set -o pipefail` (or capture `${PIPESTATUS[0]}`), run both
-profiles for both export tests, and add a small check that the startup hook's
-modes are on after `(run-hooks 'emacs-startup-hook)`.
-
-### 1.5 Hebrew search: vav/yod is one-way, and spaces are literal ✅
-
-`lisp/search-hebrew.el:27-31` builds the orderless regexp as
-
-```
-letter [niqqud]* [?] for vav/yod, [niqqud]*
-```
-
-which makes a vav/yod **optional**, not interchangeable.  Measured:
-
-| pattern | candidate | matches? |
-|---|---|---|
-| `דויד` | `דוד` | yes |
-| `דוד` | `דויד` | **no** |
-| `שלום` | `שלים` | no |
-
-The common case is the failing direction: you type unpointed `דוד`, the sefer
-has `דויד`, and it does not match.  If you want both directions, allow an
-optional `[יו]` between letters (or normalise both pattern and candidate), not
-just make vav/yod optional.
-
-Separately, `my/isearch-niqqud-fun` turns the whole search string into one
-regexp, so a space is `regexp-quote " "` — a literal space.  Normal isearch
-treats a space as `isearch-lax-whitespace` (any run of whitespace), so a Hebrew
-two-word search no longer matches across a line break.  Verified:
-`(my/hebrew-niqqud-regexp "שלום עולם")` does not match `"שלום\nעולם"`.
-
-Also, the advice checks only `isearch-regexp`; it ignores
-`isearch-regexp-function` (word/symbol search), so `M-s w` with a Hebrew
-pattern takes the plain-regexp path and loses word semantics.  Minor, but it is
-the same wrapper.
-
-### 1.6 `tinymist` is configured but never started ✅/⚠️
-
-`lisp/ide.el:14` adds `(typst-ts-mode . ("tinymist"))` to
-`eglot-server-programs`, but the `eglot` hook (`ide.el:8`) only covers
-`python-mode`, `rust-mode` and `nix-mode`.  Nothing calls `eglot-ensure` in a
-`typst-ts-mode` buffer (`lisp/typst.el:4-6` only adds `electric-pair`).
-
-So the README's "`tinymist` for eglot" is dead configuration: the server is
-never launched.  Either add `(typst-ts-mode . eglot-ensure)` (or a proper
-`typst-ts-mode-hook`) or drop the entry and the README claim.  The same
-question applies to `typst-ts-mode`'s tree-sitter grammar, which is not
-mentioned anywhere.
-
-### 1.7 Two keybindings can destroy work without asking ✅
-
-- `lisp/navigation.el:21` — `my/revert-buffer` is `(revert-buffer t t)`.
-  The second argument is `noconfirm`, so `C-c R` **discards unsaved changes
-  without a prompt**.  `C-c R` is easy to hit by accident.  Use the
-  confirming form (`(revert-buffer nil t)`) or `revert-buffer-quick`.
-- `my/kill-other-buffers` (`C-c k`) kills every file-visiting buffer in every
-  tab and frame, prompting one by one for modified ones.  With `activities`
-  enabled, it also destroys the buffers that belong to *other* activities, so
-  resuming them no longer restores the work.  It should be scoped (current
-  project, current tab, or "same major mode") or at least confirm once with a
-  count.
+| # | Item | Effort |
+|---|------|--------|
+| 1 | Restart all three daemons (B1) | 1 min |
+| 2 | Keyed vertico sort (B3) | 5 min |
+| 3 | Incremental footnote labels, plus the first-open fix (H1, H2) | 15 min |
+| 4 | Idle GC (B4) | 5 min |
+| 5 | Native-compile in `bin/install`, and prune (N3, B6) | 15 min |
+| 6 | Stale-daemon guard in `launch.sh` (B2) | 10 min |
+| 7 | Dev-mode root, so checkout edits are live (N1) | 20 min |
+| 8 | Everything P2 | as convenient |
 
 ---
 
-## 2. Design and drift (things that will mislead you later)
-
-### 2.1 `notes` is a copy of `hebrew` ✅
+## Base (shared by all three profiles)
 
-`configs/notes/init.el` and `configs/hebrew/init.el` have identical module
-lists:
+### B1 — P0 — Running daemons are from the old tree: the source of the void-function errors
 
-```
-core files ui completion editing navigation hydras
-prose writing footnotes rtl search-hebrew export reading ai
-```
+**Evidence**
 
-`notes` therefore gets the Hebrew font (`ui.el` applies it to `hebrew` and
-`notes`), the global C-f/C-b remap, niqqud search, RTL footnote labels, Org
-export and olivetti.  The only thing that differs is
-`org-export-default-language` (`"en"` for notes).  If the intent is "notes =
-markdown + English", this profile is not it; if the intent is "same tools,
-English export", say so somewhere.  Either way the export tests never exercise
-notes (§1.4), so the difference is untested.
+- The daemons were started before the Nix move, from `~/emacs-configs`.
+- That tree's `elpa/` has no `transient`. Magit and others reach `transient--set-layout`, which doesn't exist there, so C-x C-f and C-x C-s hit it via hooks and advice.
+- `set-local` is a compat function. The old daemon loaded the builtin stub `compat.el`, not the real one that `lisp/core.el:18` now locates.
+- The new root `~/.local/share/emacs-configs` is correct. Batch runs of every profile there load cleanly.
 
-### 2.2 Run-time state is per profile, and that includes history ✅
-
-`early.el` puts everything under `state/<profile>/`.  That means each profile
-has its own `recentf`, `savehist` (minibuffer history), bookmarks, save-place,
-project list, transient history, eshell history and TRAMP persistency.
-
-Consequences you feel every day:
+**Fix**
 
-- `C-x b` in `hebrew` will not list files you opened in `ide` (consult-buffer's
-  file source is recentf).
-- Minibuffer history restarts per profile.
-- Bookmarks are per profile.
+1. In each daemon run `M-x save-buffers-kill-emacs`.
+2. Relaunch with `emacs-hebrew`, `emacs-notes` or `emacs-ide`.
+3. Verify with `M-: (featurep 'transient)` → `t`, and `M-: (symbol-file 'set-local)`, which should be under `.../elpa/compat-*`.
 
-If that separation is intentional, fine — but it is not documented, and it is
-surprising that "recent files" is not shared.  Consider a `state/shared/` for
-history/recentf/bookmarks/places and per-profile state only for things that
-really differ (activities/window state, auto-save).
-
-### 2.3 `custom.el` is loaded, then overwritten by modules ⚠️
-
-`core.el` loads `custom-file` before the modules.  Every module then uses
-`setq` for its settings.  So Customize appears to work, but for any variable a
-module owns, the module wins at the next start.  That directly conflicts with
-your own rule "one owner per setting" (`plan.md` §0.10).  Either stop loading
-`custom-file` for configuration-owned variables, or treat Custom as the owner
-and remove the `setq`s.  Right now it is a second owner that loses silently.
-
-### 2.4 `tab-bar-show 0` means "always show" ✅
-
-`navigation.el:3` sets `tab-bar-show 0`.  Emacs's own doc for the variable:
-
-> If 0, always keep the tab bar shown.
-
-`tab-bar-mode` is off at startup (verified), so there is no bar until a tab
-command or `activities-tabs-mode` enables it — then it is always visible.  If
-you wanted "never show", the value is `nil`.  Given `hydra-tabs` and
-`activities`, `0` may be deliberate; just confirm it.
-
-### 2.5 `DECISIONS.md` numbers no longer match this tree ✅
-
-`DECISIONS.md` says daemon startup is hebrew 0.15 s, notes 0.18 s, ide 0.19 s.
-Measured on this machine (Emacs 31.1, warm cache):
-
-| measurement | hebrew | notes | ide |
-|---|---|---|---|
-| `(emacs-init-time)` in daemon | 0.27 s | — | — |
-| tty startup, `after-init - before-init` | 0.69–0.70 s | 0.69–0.95 s | 0.74–0.80 s |
-| daemon socket appears (first client can connect) | 0.62–0.95 s | — | — |
-| `emacs -Q --daemon` baseline socket | 0.18–0.21 s | | |
-| features at end of init | 226 | 226 | 244 |
-
-Two separate issues:
-
-1. The 0.15–0.19 s figure is not what this tree does now.  It may have been
-   measured before the last modules landed, or on a different machine.
-2. `emacs-init-time` measures init, not the time until the first client can
-   connect.  There is roughly 0.4–0.7 s of daemon/startup work after init on a
-   warm run.  The number in `DECISIONS.md` is the one you *don't* feel; the
-   socket number is the one you feel.
-
-Also, `DECISIONS.md` says "Everything lazy by default" — see §3, where hydra,
-orderless and wgrep are loaded before you use them.
-
-### 2.6 `plan.md` §5 and the code disagree completely ⚠️
-
-`plan.md`'s triage table says **drop** `projectile`, `consult-projectile`,
-`dirvish`, `activities`, `hydra`, `helpful`, `crux`, `move-text`,
-`expand-region`, `beginend`, `goto-last-change`, `visual-regexp`, `yasnippet`,
-`rainbow-delimiters`, `org-modern`, `valign` — and use `project.el`, `dired`,
-`transient`/`repeat-mode`, `tempel`, `completion-preview` instead.
-
-All of those packages are in `lisp/packages.el` and in the modules today:
-`vcs.el` (projectile, consult-projectile, git-timemachine), `navigation.el`
-(dirvish, activities), `hydras.el` (hydra), `completion.el` (helpful),
-`editing.el` (crux, move-text, expand-region, beginend, visual-regexp,
-yasnippet), `ide.el` (rainbow-delimiters), `prose.el` (org-modern, valign).
-
-That is not necessarily wrong — you may have changed your mind — but the repo
-now has two sources of truth (your rule 10).  Either update `plan.md` §5 or
-remove the packages; leaving it as-is means the next reader (human or agent)
-will "fix" the config toward the document.
-
-### 2.7 `packages.el` says it tags profiles, but has no tags ⚠️
-
-The header: "Tag after a name = the profiles that use it; no tag = all."  There
-are no tags.  Harmless, but it suggests a mechanism that does not exist.
-
-`consult-projectile` is installed and pinned in `packages.lock`, but nothing
-requires it, binds it or calls it.  It is dead weight (and pulls projectile at
-load if it ever is required).
-
-### 2.8 `bin/install` is not reproducible, and can succeed while broken ⚠️
-
-- `packages.lock` is written but never read.  `bin/install.el` does
-  `package-install` for whatever is missing, i.e. the latest MELPA.  A fresh
-  clone today does not get the versions in the lock.  If the lock is meant to
-  be a reproducibility record, use `package-pinned-packages` (or a snapshot /
-  `:vc` pins) and have `bin/install` honour it; otherwise say in the README
-  that it is a record, not a pin.
-- `package-refresh-contents` runs on every invocation (network every time).
-- Failed installs are caught and `message`d, but the script continues and exits
-  0. A half-installed `elpa/` then fails at startup.  Exit non-zero if any
-  `package-install` failed.
-- There is no byte-compilation step (see §3.3).
-
-### 2.9 README native dependencies are incomplete ⚠️
-
-`README.md` lists poppler/autotools/C++ (pdf-tools), typst, `nil`, `tinymist`,
-`rg`, `fd`, `direnv`.  The code also assumes:
-
-- **Noto Serif Hebrew** (`ui.el:6`) — silently falls back if missing.
-- **Ollama** at `localhost:11434` with `llama3` (`ai.el`).
-- A **tree-sitter grammar for Typst** (`typst-ts-mode`), and `rust-analyzer`
-  / a Python LSP for the `eglot` hooks.
-- **`pdftotext`** (poppler) for `test/export-footnote-placement.el`; the test
-  skips without it.
-- **`cargo`/`rustfmt`** for `rust-format-on-save` and the `cargo` package.
-- **`wl-paste`/`xclip`/`grim`** (Wayland screenshot/paste) for `org-download`.
-- **`pwsh`/`nu`** are optional, but `my/terminal--shells` prefers them over
-  bash, so the shell you get depends on what is installed.
-- **macOS GUI**: launching from Finder does not inherit the shell `PATH`;
-  nothing here does `exec-path-from-shell` (or equivalent), so `rg`, `fd`,
-  `typst`, `git` and language servers will be missing in a GUI launch.  The
-  README says the config works on macOS.
-
-`vendor/ox-typst/SOURCE.md` also refers to `bin/install.sh`,
-`bin/check.sh` and `bin/check-export.sh`; the repo has `bin/install` and
-`bin/check`.  Documentation drift.
-
-### 2.10 `org-modern`/`valign` vs the manifesto ⚠️
-
-They are enabled for org buffers under 200 KB (`prose.el`).  That is a
-reasonable compromise, and it is documented.  But `plan.md` says drop them
-("cosmetics on the redisplay path"), and they do run on every redisplay in
-medium-sized files.  Decide and record it; the current state is a third
-position.
-
-`my/org-pretty` calls `valign-mode` unconditionally, so a tty Emacs prints
-`Valign mode has no effect in non-graphical display` for every such buffer.
-Gate on `(display-graphic-p)` if tty use matters.
-
-### 2.11 `yasnippet` on `text-mode` means Org buffers get snippets ⚠️
-
-`editing.el:41` hooks `yas-minor-mode` into both `prog-mode` and `text-mode`.
-`org-mode` derives from `text-mode`, so YASnippet is active in every sefer, with
-the `yasnippet-snippets` collection.  That interacts with Org's own TAB
-(`org-cycle`) and with your "never touch the user's text" rule.  If you want
-snippets only in code, drop `text-mode` from the hook.
-
-### 2.12 Duplicate profile entry points ⚠️
-
-The three `configs/*/early-init.el` files are byte-identical, and `hebrew` /
-`notes` `init.el` lists are identical.  Not a bug, but any change to the
-early-init logic has to be made three times.  A tiny shared
-`lisp/profile-entry.el` loaded from each file would remove the duplication
-(and the risk of one profile drifting).
-
----
-
-## 3. Performance (measured)
-
-### 3.1 What is good
-
-- **RTL footnote overlay is not a problem.**  On a 336 KB Hebrew Org file in a
-  GUI frame with 9 visible footnote definitions: bare edit + redisplay
-  5.73 ms/keystroke; with `my/rtl-footnote-labels-follow` 6.21 ms/keystroke.
-  In batch (no redisplay) the overlay costs ~0.05 ms/edit.  That is under your
-  8 ms budget; the buffer-local hook change did its job.
-- **Long-line/keyboard settings** are sane: `scroll-conservatively 101`,
-  `read-process-output-max` 1 MB, GC restored after init.  The only global
-  `post-command-hook` entry is Emacs's own `eldoc-schedule-timer`; the RTL hook
-  is buffer-local.
-- **`org` is not loaded at init** (feature check), and `consult`, `magit`,
-  `projectile`, `dirvish`, `activities`, `pdf-tools`, `org-modern`, `valign`
-  are deferred correctly.
-
-### 3.2 What is not
-
-| item | measurement / fact |
-|---|---|
-| features at end of init | 226 (hebrew/notes), 244 (ide); `plan.md` §7 target was < 150 |
-| `hydra` at init | loaded just by loading `lisp/hydras.el`; the comment "hydra is lazy" (`hydras.el:29`) is false |
-| `orderless` at init | loaded by `use-package orderless :custom ...` (no deferral keyword) |
-| `wgrep` at init | loaded by `use-package wgrep :custom ...` (no deferral keyword); it is only useful after a grep |
-| `beginend` | loaded during `emacs-startup-hook`; adds to the first-client wait |
-| startup-hook block (savehist, recentf, winner, which-key, editorconfig, …) | ~0.09 s in batch |
-| modules | 20 files loaded as source; no `.elc` |
-| `my/load-modules` | `load "lisp/%s.el"` — see 3.3 |
-
-Rule to apply: in `use-package`, a package is loaded at init unless it has one
-of `:defer`, `:commands`, `:bind`, `:hook`, `:mode`, `:magic`, `:after` (or is
-`:demand`ed).  `:custom` does **not** defer.  `wgrep` and `orderless` are the
-two places this bites; `vertico` and `marginalia` are loaded on purpose
-(`:init (mode 1)`).
-
-Hydra: `use-package hydra :commands defhydra :config (defhydra ...)` still
-loads hydra at startup (verified with `(featurep 'hydra)` after loading
-`hydras.el`).  The `defhydra` forms need the macro at expansion time.  If you
-care, define them inside `(with-eval-after-load 'hydra ...)` and load hydra
-from the two key commands; otherwise accept the cost and fix the comment.
-
-### 3.3 Byte-compiling would not even be used today ✅
-
-`my/load-modules` calls `(load ".../core.el")`.  Verified in a clean Emacs:
-
-- `(load "/tmp/x.el")` with a newer `x.elc` present loads **`x.el`** (source).
-- `(load "/tmp/x")` loads **`x.elc`**.
-
-So if you add a build step that produces `lisp/*.elc`, the current loader will
-ignore every one of them.  Either drop the `.el` from the `format` string (and
-let `load` choose `.elc`, with `load-prefer-newer`), or don't bother compiling.
-
-Byte-compiling the modules also surfaces the terminal bug (§1.1) and a pile of
-free-variable warnings that are currently invisible.  Add a compile step to
-`bin/check` with `byte-compile-error-on-warn` for `lisp/*.el` (after loading
-the profile, so the package macros are available).
-
-### 3.4 Things to measure before changing
-
-- `org-src-fontify-natively`, `org-pretty-entities`, `org-modern`/`valign` on
-  a 150–200 KB Org file with many tables/src blocks: batch numbers do not
-  include redisplay.
-- `beginend` and `yasnippet` in Org: they add hooks to modes you use daily.
-- `global-auto-revert-mode` with `auto-revert-verbose` default `t`: it messages
-  on every external change; set `auto-revert-verbose nil` if that is noise.
-
----
-
-## 4. Missing features I would expect (built-in first)
-
-These are offerings, not demands.  Each is small unless noted.
-
-### Minibuffer, files, buffers
-
-- **Sorting**: your preference — see §5; currently not implemented at all.
-- `recentf-exclude` is nil by default here (verified).  Add `elpa/`, `state/`,
-  `temporary-file-directory`, and the export temp names (`.export-`,
-  `.typst-`) or recentf will collect them; the export's staged buffer is opened
-  with `find-file-noselect`, so it can land in recentf.
-- `savehist` only persists the minibuffer histories; `savehist-additional-variables`
-  is nil and `history-length` is 100.  Consider adding `kill-ring` and raising
-  the length.
-- `ibuffer` exists, but `ibuffer-sorting-mode` is left at its default; if you
-  want the same folder-first/alphabetical rule there, set it explicitly.
-- `C-x C-f` is still the built-in `find-file`; there is no `consult-find`/
-  `project-find-file` binding.  `M-s f` (fd) and `M-s r` (ripgrep) exist, but
-  the file-open path is the standard one.
-- `dired-x` is not enabled: `C-x C-j` (`dired-jump`), `wdired`, and
-  `dired-omit-mode` are all built in and one line each.  `dirvish` is the only
-  file browser; `dired` itself is unconfigured beyond `dired-listing-switches`
-  (which dirvish may not use).
-
-### Projects and code
-
-- **Pick one project system.**  `C-c p` is projectile (`vcs.el`), while
-  `my/project-in-new-tab` calls `project-switch-project` (project.el).
-  `consult-projectile` is installed but unused.  The `plan.md` decision was
-  project.el; the code is projectile.  Whichever wins, bind the same keys
-  (`C-x p` / `C-c p`) to it and delete the other.
-- `typst-ts-mode` + `tinymist` is not wired (§1.6); the tree-sitter grammar is
-  not documented or located.
-- No tree-sitter setup at all: no `major-mode-remap-alist`, no
-  `treesit-extra-load-path`, so Emacs 31's built-in `*-ts-mode`s are not used
-  for any language.
-- No `flymake` for non-eglot buffers (eglot turns it on where it is active;
-  there is no linting for plain scripts).
-- No `compile`/`recompile`/`project-compile` binding in the `ide` profile.
-  `my/typst-compile` is the only build command.
-- No `display-line-numbers-mode` in `prog-mode` (usually the first thing an
-  IDE profile turns on).
-- `corfu` is `prog-mode` only, with no `cape`; prose buffers get no in-buffer
-  completion.  `completion-preview-mode` is built in (30+) and cheap; it is
-  not enabled anywhere.
-- `eglot` has no keymap configuration beyond the package defaults; that is
-  fine, but `flymake` diagnostics need a keybinding or `M-n`/`M-p` on
-  diagnostics.
-
-### Prose and reading
-
-- No `auto-fill-mode`/`fill-column` for prose; `visual-line-mode` wraps the
-  display but the source lines are unbounded.  Decide which you want for Org.
-- Spelling is deliberately absent (`DECISIONS.md`); leave it.
-- `pdf-tools` has no `pdf-view-use-scaling`, no annotation setup and no
-  `pdf-view-restore`/place saving; on a HiDPI display the default may be
-  blurry or slow.
-- `nov` is loaded but has no `nov-text-width`/`nov-variable-pitch` settings.
-- `doc-view`/`djvu` are not configured for non-PDF reading.
-
-### Environment and platform
-
-- No `exec-path-from-shell` (or equivalent) for a GUI Emacs on macOS; the
-  README claims macOS support but a Finder launch will not find `rg`/`fd`/
-  `typst`/language servers.
-- `envrc` is `ide` only; the `hebrew`/`notes` profiles run `typst` from
-  `export.el` with the global `PATH`.  If typst lives in a dev shell, export
-  from those profiles will fail.
-- `bin/check` has no Windows equivalent (`bin/check.cmd`), though the README
-  says the Windows launchers exist.  `bin/launch.cmd` also does not validate
-  the profile name the way `launch.sh` does.
-- `delete-by-moving-to-trash` needs a working `move-file-to-trash` backend
-  (`gio`/`trash`); not checked or documented.
-
----
-
-## 5. Your buffer/file list: folder-first, then alphabetical
-
-**Current behaviour: not implemented anywhere.**  Verified:
-
-- `vertico-sort-function` is the Vertico default,
-  `vertico-sort-history-length-alpha`.  That sorts by minibuffer history first,
-  then by candidate length, then alphabetically — i.e. "recent/short first",
-  not alphabetical.
-- `consult-buffer` uses Consult's default `:sort t`, so it is exactly that
-  Vertico sort (within each source group: Buffers, Files, Bookmarks, …).
-- `consult-fd`, `consult-find` and `consult-ripgrep` pass `:sort nil`, which
-  sets `display-sort-function` to `identity`: their results keep the order the
-  external tool emits.  `fd` and `find` emit filesystem traversal order;
-  `rg` groups by file but does not guarantee alphabetical.
-- `C-x C-f` (`find-file`) also goes through Vertico's default sorter, so its
-  candidates are not alphabetical either.
-
-So the list you see today is recency/length-driven, with no folder grouping.
-
-A minimal, stat-free sorter that does what you asked for (directories ending in
-`/` first, then case-insensitive alphabetical, which groups paths by folder):
+### B2 — P1 — Nothing detects a stale daemon
+
+**Evidence**
+
+- `launch.sh` connects to any server named `emacs-<profile>` that is alive, whatever tree it was started from. That is how B1 survived the migration silently.
+
+**Fix**
+
+- Have `early.el` record `(setq my/config-root ROOT)` and the store path of `lisp/`.
+- Have `launch.sh` compare it against the current value before connecting:
+
+  ```sh
+  live=$(emacsclient -s "emacs-$p" --eval '(bound-and-true-p my/config-stamp)' 2>/dev/null)
+  [ "$live" = "\"$STAMP\"" ] || echo "emacs-$p is running an old config; restart it (M-x save-buffers-kill-emacs)" >&2
+  ```
+
+  `STAMP` is the store path baked in by the Nix wrapper. Warn rather than kill, because killing loses unsaved buffers.
+
+### B3 — P1 — Vertico sort costs 378 ms every time M-x opens
+
+**Evidence**
+
+- `lisp/completion.el:4` `my/vertico-sort-folders-first` calls `substring-no-properties` and `downcase` inside the comparison function. That is O(n log n) allocations.
+- It is also interpreted, because modules are loaded as source.
+- Measured on 5,753 M-x candidates:
+
+  | Variant | ms per sort |
+  |---|---|
+  | current, interpreted | 378 |
+  | current, byte-compiled | 233 |
+  | decorate-sort (key computed once), interpreted | 92 |
+  | Emacs 30 `sort :key`, interpreted | **20** |
+  | Emacs 30 `sort :key`, compiled | **17** |
+
+**Fix** (same order: directories first, then case-insensitive). I checked the output order: `("Ab/" "zz/" "a" "b")`.
 
 ```elisp
 (defun my/vertico-sort-folders-first (cands)
-  "Sort CANDS alphabetically, directories before files.
-A candidate ending in \"/\" is a directory; this is how `read-file-name'
-presents them, so no `file-directory-p' stat is done per candidate."
-  (sort (copy-sequence cands)
-        (lambda (a b)
-          (let* ((a (substring-no-properties a))
-                 (b (substring-no-properties b))
-                 (da (string-suffix-p "/" a))
-                 (db (string-suffix-p "/" b)))
-            (cond ((and da (not db)) t)
-                  ((and db (not da)) nil)
-                  (t (string-lessp (downcase a) (downcase b))))))))
-
-(setq vertico-sort-function #'my/vertico-sort-folders-first)
+  (sort cands :key (lambda (c) (cons (not (string-suffix-p "/" c)) (downcase c)))))
 ```
 
-Caveats:
+`sort` with `:key` is new in Emacs 30. It compares the conses with `value<` and computes each key once, in C.
 
-- This changes sorting for *all* completions: `M-x` becomes alphabetical
-  instead of history-first.  That is probably what you want, but it is a
-  deliberate loss of recency ranking.
-- `consult-fd`/`consult-find`/`consult-ripgrep` explicitly opt out of sorting
-  (`:sort nil`), so the variable above does not affect them.  For ripgrep, add
-  `--sort path` to `consult-ripgrep-args` (rg supports it; it disables
-  parallelism, so it is slower).  `fd` has no sort flag; if you want sorted fd
-  results you need a small wrapper around `consult--read` or a post-filter.
-  Vertico has `vertico-sort-override-function` (verified present), which can be
-  bound around a command to override its table's `:sort nil`.
-- Directory detection by trailing `/` works for `C-x C-f` and for buffers, but
-  not for `fd` output, which prints directories without a trailing slash.  For
-  fd, the sorter will at least group by path alphabetically; true
-  directories-first there needs a stat or a wrapper.
-- If you also want this in `ibuffer`, set `ibuffer-sorting-mode` to
-  `'alphabetic` (and `ibuffer-sorting-reversep` to nil).
+### B4 — P1 — GC pauses of 50–80 ms during typing
 
-The proposed function was tested on a mixed list and produced
-`("dir/" "docs/" "src/" "a.el" "README" ...)` — directories first, then files,
-case-insensitive.
+**Evidence**
 
----
+- A full GC in the running hebrew daemon (420 features) takes 83 ms. In ide it takes 51 ms.
+- Typing in org conses 35–40 KB per character.
+- With `gc-cons-threshold` at 16 MB (`lisp/core.el:24`), that is one visible stutter every ~400–450 characters, landing mid-word.
 
-## 6. Code quality and structure
-
-- **`my/load-modules`**: uses `load` with a hard-coded `.el` suffix (so
-  `.elc` is ignored), has no `provide`, and reloading a module duplicates its
-  hooks (e.g. `rtl`'s `post-command-hook`, `core`'s `emacs-startup-hook`).  For
-  a config this small, `require` + a `provide` at the end of each module would
-  be safer.
-- **No module-completeness check.**  `plan.md` mentioned an invariant that every
-  file in `lisp/` is listed by some profile.  It is gone.  A new file can sit
-  unused forever (or a typo in a module name silently changes a profile) with
-  nothing failing.
-- **Anonymous lambdas in global keys and hooks**: `C-c W`, `C-c T`, `envrc`'s
-  `after-init` hook, `ibuffer-mode`'s filter-group hook, `rtl`'s Org hook.
-  They work, but `C-h k` shows a lambda and you cannot `remove-hook` them by
-  name.  Name the ones you might want to remove.
-- **Missing docstrings** on `my/kill-current-buffer`, `my/kill-other-buffers`
-  (has one), `my/revert-buffer`, `my/split-below-and-follow`,
-  `my/split-right-and-follow`, `my/typst-compile`, `my/typst-watch`,
-  `my/typst-view`.  Small, but these are commands.
-- **`my/org-drop-footnote-highlighting`** identifies the keyword with
-  `(string-match-p "org-activate-footnote-links" (format "%S" kw))`.  It works
-  today and the test suite does not cover it; if Org ever changes the keyword
-  representation, it silently stops removing the expensive keyword.  Assert
-  that something was removed, or filter on the actual symbol.
-- **`org-export-headline-levels` and `org-export-default-language` are set
-  before `ox.el` is loaded** (`export.el`).  This works because `setq` creates
-  the variable, but it is fragile; a `with-eval-after-load 'ox` (or `:custom`
-  after loading ox) would be honest about the dependency.
-- **`my/rtl`** still uses the older `global-set-key` form for its remaps;
-  `keymap-global-set` is the form the rest of the config uses.
-- **`my/org-pretty`** uses `(buffer-size)` (characters) against
-  `my/pretty-max-size` (200 KiB); that is the intended metric, but note it is
-  not the file size on disk.  Fine; just be aware for UTF-8 files.
-- **`test/invariants.el`** checks a good set of settings, but not the ones most
-  likely to regress: the Org footnote keyword filter, the terminal, the
-  search-hebrew regexp, the sort function, or the export's narrow/copy
-  behaviour.
-- **`test/export-in-profile.el`** and `export-footnote-placement.el` are
-  genuinely good tests: they assert shape (one PDF, no strays, geometry at the
-  page bottom) rather than the existence of a function.  Keep them; add the
-  missing cases (narrowed buffer, async, notes profile, terminal, sort).
-
----
-
-## 7. Answers to your two side questions
-
-### 7.1 Should you use `cooked` for the terminal?
-
-`cooked` (github.com/vodik/cooked) is a comint-derived terminal emulator with a
-Rust native core.  The Rust side owns the pty and does terminal-state parsing,
-pacing the Emacs side at a fixed frame rate; the Emacs side stays a comint
-buffer, so your `C-c` bindings and kill ring work.  That is the "fast" claim.
-It is **not** running Emacs Lisp on another thread — Emacs Lisp threads are
-cooperative and share the main loop; the win is a separate native process doing
-the VT work, not a preemptive Emacs.
-
-The "smart" claim is real and specific: it reads the kernel line discipline
-(canonical/echo) and OSC 133 prompt marks, so it knows when Emacs should own the
-line (shell prompt), when to ask for a password in the minibuffer (getpass), and
-when a full-screen program owns the keyboard.  That also gives it per-command
-records and `next-error` scoping, which `vterm`/`eat` cannot do structurally.
-
-Costs and constraints, from its README:
-
-- Emacs 29.1+ **with dynamic module support**, Rust 1.85+ (edition 2024),
-  Linux and macOS only — no Windows.
-- The native module builds with `cargo` on first use (about a minute) and
-  rebuilds when the Rust sources are newer.  That is a native dependency and a
-  toolchain requirement, not a pure package.
-- It is new (created August 2026, a handful of commits) and self-described as
-  "almost 100% vibe coded"; not in MELPA, so it does not fit your
-  `packages.el` + `bin/install` flow without `:vc`/straight.
-- That conflicts with two of your own decisions: the repo is meant to be pure
-  package.el, and you dropped `jinx` specifically because it was a native
-  dependency.
-
-Your current terminal is `shell` (comint), which is **not a terminal emulator**:
-it is line-oriented and cannot run `htop`, `vim`, `tmux`, or `ssh` password
-prompts properly.  If your use is `git`, `nix build`, `typst`, `rg` and other
-line commands, `shell` is the cheapest and fastest choice and you should keep
-it.  If you need a real terminal now:
-
-- **`eat`** (NonGNU ELPA): pure Elisp, no compiler, works on Windows, much
-  faster than `term`, not as fast as native.  This is the conservative pick and
-  the only one that matches "no native dependencies".
-- **`vterm`**: mature, C module, fast, needs a build (cmake + libvterm).
-- **`cooked`**: the most interesting design and the best comint integration, but
-  the youngest and the most native.  Revisit it when it has stabilized, or if
-  the ssh-password/next-error features are worth the toolchain to you.
-
-Whatever you choose, fix `terminal.el:18` first (§1.1); it cannot start a shell
-today on first use.
-
-### 7.2 `emacs-init-time` is a function, not a variable
-
-That is the void-variable error.  In Emacs 31:
-
-```
-(fboundp 'emacs-init-time) => t
-(boundp 'emacs-init-time)   => nil
-```
-
-Call `(emacs-init-time)` (it returns a string and also messages it), or
-`(emacs-init-time "%f")`.  For a value you can compute with, use:
+**Fix:** collect while idle instead of while typing.
 
 ```elisp
-(float-time (time-subtract after-init-time before-init-time))
+(setq gc-cons-threshold (* 64 1024 1024) gc-cons-percentage 0.2)
+(run-with-idle-timer 4 t #'garbage-collect)
 ```
 
-The latter is what a launch script or test should record, plus the time until
-the daemon socket answers — the two numbers differ by ~0.4–0.7 s here (§2.5).
+You could use the `gcmh` package instead, which does the same thing. Don't go above ~128 MB: each collection then takes longer when it does happen.
+
+### B5 — P1 — All modules run interpreted, including the hot paths
+
+**Evidence**
+
+- This was a deliberate choice (commit af435d1, so edits apply without rebuilds).
+- The cost is small for setup code, but it matters for the functions that run per keystroke or per completion: B3 above, and H1.
+
+**Fix**
+
+- Keep loading as source.
+- Byte-compile just the hot functions at load time: `(byte-compile 'my/vertico-sort-folders-first)`, and the same for the rtl functions in H1.
+- This takes milliseconds at startup and needs no `.elc` files.
+
+### B6 — P1 — `bin/install`: not reproducible, no pruning, refresh every run, a lockfile nobody reads
+
+**Evidence** (`bin/install.el`)
+
+- `package-refresh-contents` runs on every invocation (line 17).
+- MELPA packages install at HEAD, so two installs a day apart differ.
+- `packages.lock` is written (line 53) but nothing reads it. `lisp/packages.el:3` admits it is informational. The committed lock is also out of date with what is installed.
+- Packages removed from the list are never deleted.
+
+**Fix**
+
+- Refresh only when a wanted package is missing from `package-archive-contents`.
+- After installing, delete every `package-alist` entry that is neither in `my/packages` nor a dependency (`package--removable-packages` does this calculation).
+- Either make the lock real (install from the recorded versions or commits via `package-vc` or a checksum check) or stop committing it and say so. Half-pinning is worse than either, because it suggests a guarantee that doesn't exist.
+
+### B7 — P2 — The old checkout's elpa is out of date and full of orphans
+
+**Evidence**
+
+- `~/emacs-configs/elpa` has 67 package dirs.
+- Among them are packages no longer in `lisp/packages.el`: projectile, consult-projectile, helpful, hydra, nix-mode, nov, pdf-tools, envrc, valign, typst-ts-mode, and others.
+- It lacks transient (B1).
+- Nothing uses this tree any more. The live elpa is `~/.local/share/emacs-configs/elpa`.
+
+**Fix**
+
+- After B1, delete `~/emacs-configs/elpa`, `~/emacs-configs/state`, and the per-profile `eln-cache` dirs in the checkout.
+- Add them to `.gitignore` if they aren't already.
+- Optionally copy `state/` (savehist, recentf, places) to the new root first. See N5.
+
+### B8 — P2 — savehist saves the kill-ring with text properties
+
+**Evidence**
+
+- `lisp/core.el:61` sets `savehist-additional-variables '(kill-ring)`.
+- Kill-ring entries from org or magit carry faces and `display` properties. That makes `savehist` files large, makes every autosave write slow, and can store unreadable objects.
+
+**Fix**
+
+```elisp
+(setq savehist-additional-variables '(kill-ring)
+      kill-ring-max 60)
+(add-hook 'savehist-save-hook
+          (lambda () (setq kill-ring (mapcar #'substring-no-properties
+                                             (seq-filter #'stringp kill-ring)))))
+```
+
+### B9 — P2 — consult previews can load large org files
+
+**Evidence**
+
+- `consult-preview-key '(:debounce 0.2 any)` (`lisp/completion.el:62`).
+- Moving through `consult-buffer` or `consult-recent-file` over a large org file runs the full org-mode setup for the preview, including org-modern and the rtl hooks in the hebrew/notes profiles. That is a visible hitch.
+
+**Fix**
+
+- Preview is already lazy for unopened files with `consult-preview-allowed-hooks`. Also add `(setq consult-preview-max-size 2000000)`.
+- Use `consult-customize` to set `:preview-key "M-."` for `consult-recent-file`, so files are previewed only on request.
+
+### B10 — P2 — `consult-ripgrep` runs single-threaded
+
+**Evidence**
+
+- `--sort path` (`lisp/completion.el:65`) forces ripgrep to one thread.
+- That is unnoticeable in small repos, but slow across `~/Documents`.
+
+**Fix:** drop it, or keep it only for `consult-ripgrep` in project roots.
+
+### B11 — P2 — `dired-listing-switches` assumes GNU ls
+
+**Evidence**
+
+- `lisp/navigation.el:5` uses `--group-directories-first`.
+- The repo ships `.cmd` launchers, which suggests Windows use. There, or with BSD ls, dired errors out.
+
+**Fix**
+
+```elisp
+(setq dired-listing-switches
+      (if (and (executable-find "ls") (not (eq system-type 'windows-nt)))
+          "-al --group-directories-first" "-al"))
+```
+
+Alternatively set `ls-lisp-dirs-first t` on Windows.
+
+### B12 — P2 — `auto-revert` messages on every revert
+
+**Evidence**
+
+- `global-auto-revert-mode` is on. `auto-revert-verbose` is at its default `t`, which floods the echo area when git operations change many files.
+
+**Fix:** `(setq auto-revert-verbose nil)`.
+
+### B13 — P2 — The three `early-init.el` files are near-identical copies
+
+**Evidence**
+
+- `configs/*/early-init.el` differ only in the profile name. This is old audit item 2.12, still open.
+
+**Fix**
+
+- Reduce each to two lines that set the profile and `(load (expand-file-name "../../lisp/early.el" ...))`.
+- Move the module list to a single `lisp/profiles.el`, using an alist from profile to modules.
+
+### B14 — P2 — `bin/check` tests batch only
+
+**Evidence**
+
+- `bin/check` loads each profile in `--batch`. It would not have caught B1 (stale daemon), H2 (labels missing until the first command), or anything that needs redisplay.
+
+**Fix**
+
+- Add a daemon smoke test: start a throwaway daemon with `--fg-daemon=check-$p` and a temporary server dir.
+- `emacsclient --eval` a find-file of a fixture org file, run `(redisplay)`, and assert on overlays and features.
+- Kill the daemon afterwards.
+- Keep `test/invariants.el` for settings.
 
 ---
 
-## 8. Suggested order of work
+## Profile: hebrew
 
-**P0 — correctness and trust**
+Module list: core files bidi ui completion editing navigation terminal prose writing footnotes rtl search-hebrew export ai.
 
-1. `terminal.el`: `(require 'shell)` (or stop binding
-   `explicit-shell-file-name`).  Verify `C-`` starts a shell on a fresh daemon.
-2. `export.el`: widen when staging (or make narrowing explicit in the
-   docstring).  Add a test that narrows and checks the whole document.
-3. `bin/check`: pipefail + run the notes export test + a startup-hook check.
-4. Decide what `notes` is; update its module list or document that it is
-   hebrew-with-English-export.
-5. Reconcile `DECISIONS.md` numbers, `plan.md` §5 and the package list.  One
-   source of truth.
+### H1 — P1 — The footnote-label hook rebuilds every label on every keystroke
 
-**P1 — the things you feel**
+**Evidence**
 
-6. Sorting: §5.  This is your explicit preference and it is currently absent.
-7. `search-hebrew`: two-way vav/yod and lax spaces; a test with `דוד`/`דויד`.
-8. `typst-ts-mode`: wire `eglot-ensure` (and document the grammar) or remove
-   the dead `tinymist` entry.
-9. `revert-buffer` / `kill-other-buffers` confirmation and scope.
-10. `bin/install`: honour `packages.lock` or relabel it as informational; exit
-    non-zero on failed installs; document missing native deps.
+- `lisp/rtl.el:39` `my/rtl-footnote-labels-follow` runs from `post-command-hook`.
+- Its change-signature includes `buffer-chars-modified-tick` (line 40). Any typed character therefore deletes and recreates every label overlay in the visible region (`my/rtl-footnote-labels`, line 24).
+- Measured, ms per typed character:
 
-**P2 — polish and features**
+  | File | Current hook | Incremental (fix) | No hook at all |
+  |---|---|---|---|
+  | fn-long (long bidi paragraphs) | 21.6 | 19.4 | 18.0 |
+  | fn-big (many short footnotes) | 9.5 | 9.5 | 8.7 |
 
-11. Byte-compile + loader fix (§3.3), or explicitly accept interpreted startup.
-12. Laziness: `wgrep`, `orderless`, `hydra`, `beginend`; or update the
-    "everything lazy" claim.
-13. Missing features from §4 that you actually miss: pick at most five.
-14. Tests for terminal, sort, search, narrow export; `bin/check` in CI.
+  The fix recovers about 60% of the hook's cost on long-line files. The rest is the overlays' own redisplay cost.
+- For comparison, on the same file:
+  - text-mode is 13.5 ms;
+  - org as configured is 16.7 ms;
+  - `bidi-inhibit-bpa` makes no difference.
+
+  So redisplay of the bidi text dominates, and org itself adds 2–3 ms.
+- I also prototyped a font-lock/jit-lock version. It was correct but 3–4× slower (44–70 ms per character), so I rejected it.
+
+**Fix:** rebuild only when an edit could change labels.
+
+- That means a deletion, a newline, or typing inside or in front of an `[fn:…]` at line start.
+- Window scrolling and resizing still trigger a rebuild through the signature.
+
+Prototype (tested: a broken label loses its display, a repaired one gets it back):
+
+```elisp
+(defvar-local my/rtl-footnote-dirty t)
+
+(defun my/rtl-footnote-note-change (beg end len)
+  (unless my/rtl-footnote-dirty
+    (setq my/rtl-footnote-dirty
+          (or (> len 0)
+              (save-excursion (goto-char beg) (search-forward "\n" end t))
+              (save-excursion
+                (goto-char beg) (beginning-of-line)
+                (and (eq (char-after) ?\[)
+                     (or (not (looking-at "\\[fn:[^]\n]*\\]"))
+                         (<= beg (match-end 0)))))))))
+
+(defun my/rtl-footnote-labels-follow ()
+  (let ((sig (mapcar (lambda (w) (cons w (my/shown-region w)))
+                     (get-buffer-window-list nil nil t))))
+    (when (or my/rtl-footnote-dirty (not (equal sig my/rtl-footnote-signature)))
+      (setq my/rtl-footnote-signature sig
+            my/rtl-footnote-dirty nil)
+      (my/rtl-footnote-labels))))
+
+(add-hook 'org-mode-hook
+          (lambda ()
+            (add-hook 'after-change-functions #'my/rtl-footnote-note-change nil t)
+            (add-hook 'post-command-hook #'my/rtl-footnote-labels-follow nil t)))
+(mapc #'byte-compile '(my/rtl-footnote-note-change my/rtl-footnote-labels-follow
+                       my/rtl-footnote-labels my/shown-region))
+```
+
+Also use a named function instead of the lambda in `org-mode-hook` (line 49), so it can be removed and is not added twice when the module is reloaded.
+
+### H2 — P1 — Footnote labels are missing until the first command after opening a file
+
+**Evidence**
+
+- Labels are built only from `post-command-hook`. Right after `find-file` there were 0 RLM overlays in the buffer. They appear on the first keypress or scroll.
+- A file opened from `emacsclient`, or restored by `desktop` or `activities`, shows raw labels until touched.
+
+**Fix:** also build once when the buffer first gets a window.
+
+```elisp
+(add-hook 'window-buffer-change-functions
+          (lambda (_) (setq my/rtl-footnote-dirty t) (my/rtl-footnote-labels-follow))
+          nil t)
+```
+
+Put this inside the same org-mode-hook function.
+
+### H3 — P2 — `my/shown-region` estimates the visible region in logical lines
+
+**Evidence**
+
+- `lisp/rtl.el:16` uses `forward-line (1+ window-body-height)`.
+- With `visual-line-mode` (on in all text buffers), one logical line can be many screen lines, so the region covers far more text than is visible. That is more overlays to rebuild.
+- It is correct (a superset) but wasteful on long paragraphs.
+
+**Fix:** use `(window-end w t)`, which is exact after redisplay. Fall back to the current estimate only when `window-end` is stale (`(window-end w)` before the first redisplay).
+
+### H4 — note — RTL motion remaps are intentional
+
+`forward-char`/`backward-char` are remapped to `right-char`/`left-char`. That is correct for visual RTL movement. Elisp that calls `forward-char` directly is unaffected, because remaps only apply to keys.
+
+### H5 — note — `search-hebrew.el` is fine
+
+The isearch advice and the orderless dispatcher cost nothing measurable.
 
 ---
 
-## Appendix — how the numbers were obtained
+## Profile: notes
 
-- `bin/check` (all profiles) — passes.
-- Startup: `emacs --init-directory=configs/<profile> --daemon=...`, poll for
-  `/run/user/1000/emacs/<server>`, and write `(emacs-init-time)` to a file;
-  repeat with `-Q` for the baseline.  TTY numbers from
-  `script -qec "emacs --init-directory=... --eval '...'"`.
-- Keystrokes: 336 KB Hebrew Org file, GUI frame, `benchmark-run` around
-  `insert`/`delete-char` with and without `my/rtl-footnote-labels-follow`, plus
-  `redisplay`.
-- Terminal: batch load of the `ide` profile, then `(my/new-terminal)`; error
-  text reproduced, and with `(require 'shell)` first the process started as
-  `nu -i`.
-- Export: temp Org files with a footnote section, narrowing, and
-  `pdftotext` on the result; async call with `(org-typst-export-to-pdf t)`.
-- Search: direct calls to `my/orderless-hebrew` and
-  `my/hebrew-niqqud-regexp` with pointed/unpointed strings.
-- Sorting: inspected `vertico-sort-function`,
-  `consult--multi`'s `:sort t` and `consult--find`'s `:sort nil`; tested the
-  proposed sorter on a mixed list.
-- Byte-compilation: `emacs -Q --batch -l configs/<profile>/early-init.el
-  --eval '(package-activate-all)' -f batch-byte-compile lisp/*.el`.
+The notes module list is hebrew's minus `rtl` and `search-hebrew`. H1–H3 therefore don't apply, but everything in "Shared by hebrew and notes" below does.
 
-Nothing in the repository was changed except this file.
+### O1 — P2 — No Hebrew fontset, though notes contain Hebrew
+
+**Evidence**
+
+- `lisp/ui.el:9` sets the Hebrew fontset only in the hebrew profile.
+- In notes, Hebrew falls back to font search. That is a different font, and it costs a font lookup the first time each glyph is shown.
+
+**Fix:** set the fontset in every profile. It is cheap.
+
+```elisp
+(set-fontset-font t 'hebrew (font-spec :family "Noto Serif Hebrew"))
+```
+
+### Shared by hebrew and notes (prose, footnotes, export)
+
+#### P1 — P1 — Export runs the whole org setup twice on the staged copy
+
+**Evidence**
+
+- `lisp/export.el` stages a copy of the file and opens it with `find-file-noselect`. That already runs `org-mode` and every hook: rtl labels, org-modern, olivetti, and so on.
+- It then calls `(org-mode)` again at line 89.
+- On large files this doubles the export's setup cost and renders overlays nobody sees.
+
+**Fix:** open the staged copy without hooks, then enable org once.
+
+```elisp
+(let ((org-mode-hook nil) (auto-mode-alist nil))
+  (with-current-buffer (find-file-noselect staged)
+    (org-mode)
+    ...))
+```
+
+Alternatively use `(with-temp-buffer (insert-file-contents staged) (org-mode) ...)`, which is what ox expects anyway.
+
+#### P2 — P2 — org-modern is cut off by file size, not by cost
+
+**Evidence**
+
+- `lisp/prose.el` enables org-modern only below 200 KB. That is a reasonable guard.
+- org-modern's unfontify removes **all** `display` properties, while org's own `org-unfontify-region` removes only org's. Nothing here currently relies on display *properties* (the footnote labels use overlays, which are safe). Anyone who later moves labels to text properties would see them wiped.
+
+**Fix:** none needed now. Leave a comment next to the org-modern block recording this constraint.
+
+#### P3 — note — footnotes.el is fine
+
+`org-footnote-auto-adjust nil` is right for hand-ordered footnotes. Dropping org's footnote font-lock keyword (in prose.el) is right, because labels are drawn by rtl.el in hebrew.
+
+---
+
+## Profile: ide
+
+Module list: core files bidi ui completion editing navigation terminal writing ide vcs ai.
+
+### I1 — P1 — `project-remember-projects-under` doesn't do what its comment says
+
+**Evidence**
+
+- `lisp/vcs.el:16` calls `project-remember-projects-under "~/Documents/"` from magit's `:config`.
+- The comment says every repo is remembered at startup. In fact:
+  - it runs only when magit first loads;
+  - it is **non-recursive**, so only direct children of `~/Documents` that are repos are found. ~/Documents has 20 entries.
+
+**Fix:** decide which behaviour you want, then fix the comment either way.
+
+- To remember repos at depth: `(project-remember-projects-under "~/Documents/" t)` on an idle timer after startup. The recursive scan is slow on large trees, which is why it shouldn't be in init.
+- Otherwise, drop the call and let `project.el` remember projects as you visit them. That is the default behaviour and costs nothing.
+
+### I2 — P2 — yasnippet: slow first prog buffer, and a snippets dir inside the config
+
+**Evidence**
+
+- `lisp/ide.el:34` calls `yas-reload-all` in `:config`. It runs on the first prog-mode buffer and loads every snippet table, so the first file you open stalls.
+- The default `yas-snippet-dirs` includes `configs/ide/snippets` under `user-emacs-directory`. With the Nix layout that dir is a store link or doesn't exist, so a new snippet can't be saved there.
+
+**Fix**
+
+```elisp
+(setq yas-snippet-dirs (list (expand-file-name "snippets" my/state-dir)))
+```
+
+Then either drop `yas-reload-all` (`yas-minor-mode` loads tables lazily per mode) or run it from an idle timer.
+
+### I3 — note — eglot watched-files advice
+
+The lambda advice declining `workspace/didChangeWatchedFiles` (`lisp/ide.el:23`) is a valid performance choice for large repos. The downside is that servers won't notice files changed outside Emacs, such as on a git checkout, until a restart. Make it a named function so it can be toggled, and document the trade-off.
+
+### I4 — note — the rest of ide.el and vcs.el is fine
+
+corfu with `auto nil`, rust format-on-save, cargo, rainbow-delimiters, slime, magit, diff-hl and git-timemachine are all deferred and fine.
+
+---
+
+## Nix side (`~/config`)
+
+### N1 — P1 — Edits to `~/emacs-configs` don't reach Emacs: a trust problem
+
+**Evidence**
+
+- The runtime root links into the store copy of the `emacsConfigs` flake input.
+- An edit in the checkout does nothing until you push, run `just update-emacs`, switch, *and* restart the daemon.
+- This is the opposite of what commit af435d1 (load source, so edits apply immediately) was for. It is easy to "fix" something, see no change, and stop trusting the config.
+
+**Fix:** add a dev mode.
+
+- Option 1: an `emacsConfigs.dev = true` option in `modules/home/emacs.nix` that uses `config.lib.file.mkOutOfStoreSymlink "${home}/emacs-configs/lisp"` (and the same for vendor, bin and test) instead of store paths.
+- Option 2: switch with `--override-input emacsConfigs path:/home/…/emacs-configs` while iterating.
+
+The first is simpler day to day.
+
+### N2 — P1 — `CHANGES.md` claims the daemons were "repaired in place"
+
+**Evidence**
+
+- The uncommitted entry says this, but the daemons were never restarted (B1). That claim is how the errors looked like a config bug.
+
+**Fix:** reword it to say the daemons must be restarted after the migration, and why.
+
+### N3 — P1 — Empty eln-cache: the first daemon start will native-compile ~49 packages in the background
+
+**Evidence**
+
+- Each profile's `eln-cache` in the new root is 8 KB, i.e. empty. The old ones are 0.6–1.8 MB.
+- On the first real start of each daemon, JIT native compilation runs for every package as it loads. That means several minutes of high CPU, with Emacs feeling sluggish meanwhile.
+- It happens per profile, because the caches are separate.
+
+**Fix**
+
+- Have `bin/install.el` end with `(native-compile-async package-user-dir 'recursively)`, run in the foreground with a wait loop so it completes inside activation.
+- Alternatively start each daemon once after switching and let it finish before relying on it.
+- Use one shared eln-cache for elpa instead of three, by setting `native-comp-eln-load-path` to a shared dir first. The packages are identical across profiles.
+
+### N4 — P2 — Activation installs only when `elpa/` is empty
+
+**Evidence**
+
+- `modules/home/emacs.nix` activation runs `emacs-install` only on an empty elpa.
+- A package added to `lisp/packages.el` is therefore not installed on switch. It fails at load time with a missing-package error until you run `emacs-install` by hand.
+
+**Fix**
+
+- Run install on every activation, but make it cheap: see B6, no refresh unless something is missing.
+- Alternatively compare a hash of `packages.el` against a stamp file in `state/`.
+
+### N5 — P2 — Old state wasn't migrated
+
+**Evidence**
+
+- savehist, recentf and save-place data live in the old `~/emacs-configs/state`. The new root started fresh, so history and recent files are gone after B1's restart.
+
+**Fix:** a one-off `cp -n ~/emacs-configs/state/* ~/.local/share/emacs-configs/state/`, done before deleting the old tree (B7).
+
+---
+
+## Docs
+
+### D1 — P2 — `plan.md` is stale
+
+It still mentions projectile and hydra, and lists as "dropped" packages that are present (crux, dirvish, and others). **Fix:** rewrite it from the current `lisp/packages.el`, or fold it into `DECISIONS.md` and delete it.
+
+### D2 — note — previous AUDIT.md
+
+The previous AUDIT.md said Emacs 31.1, but this setup runs 30.2. It has been replaced by this file. Fixed from it: item 2.3 (custom.el load order) and the `bin/install` exit status. Still open: 2.12, now B13.
+
+---
+
+## Appendix: how the numbers were taken
+
+- **Setup**
+  - Throwaway daemons ran under `script` in a 50×140 tty, with the real elpa and the real profile `init.el`.
+  - Fixtures were `fn-long.org` (long Hebrew paragraphs with footnotes) and `fn-big.org` (many short footnotes).
+- **Typing**: 500 `self-insert-command` iterations, each followed by `post-command-hook` and a forced `redisplay`, timed with `benchmark-run`.
+- **Scrolling**: `scroll-up-command` plus redisplay, per page.
+- **GC**
+  - `(benchmark-run 1 (garbage-collect))` in the live daemons.
+  - Allocation per character was taken from `memory-use-counts` deltas.
+- **Sort**: `benchmark-run 5` over every `commandp` symbol name.
+- **Caveat**: tty redisplay is cheaper than pgtk. Expect the GUI's absolute ms to be higher and the ratios similar.

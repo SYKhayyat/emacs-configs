@@ -19,10 +19,18 @@
   (unless compat (error "Compat is not installed: run bin/install"))
   (load compat nil 'nomessage))
 
+(defvar my/gc-idle-timer nil)
 (defun my/restore-after-init ()
-  "Undo the temporary GC and file-handler settings from early.el."
-  (setq gc-cons-threshold (* 16 1024 1024)
-        gc-cons-percentage 0.1)
+  "Undo the temporary GC and file-handler settings from early.el.
+GC then happens mostly while idle: a full collection in a loaded daemon takes
+50-80 ms, and typing in Org conses 35-40 KB per character, so a 16 MB threshold
+put a visible stall mid-word every ~400 characters. 64 MB plus a collection
+after 4 s idle moves it to the pauses. Not higher: each collection that does
+happen while typing then takes longer."
+  (setq gc-cons-threshold (* 64 1024 1024)
+        gc-cons-percentage 0.2)
+  (unless my/gc-idle-timer
+    (setq my/gc-idle-timer (run-with-idle-timer 4 t #'garbage-collect)))
   ;; Merge, don't overwrite: handlers registered during init (TRAMP) survive.
   (setq file-name-handler-alist
         (delete-dups (append file-name-handler-alist my/file-name-handler-alist))))
@@ -59,6 +67,8 @@
       recentf-max-saved-items 200
       history-length 500
       savehist-additional-variables '(kill-ring)
+      kill-ring-max 60
+      auto-revert-verbose nil
       ;; Files the config itself creates are not "recent".
       recentf-exclude (list (concat "\\`" (regexp-quote (expand-file-name my/repo-root))
                                     "\\(elpa\\|state\\)/")
@@ -68,6 +78,26 @@
               word-wrap t)
 
 (add-hook 'text-mode-hook #'visual-line-mode)
+
+;; The kill ring is saved as plain text. Kills from Org or Magit carry faces and
+;; `display' properties, which made the savehist file large, every autosave
+;; slow, and could write objects that do not read back.
+(defun my/savehist-plain-kill-ring ()
+  (setq kill-ring (mapcar #'substring-no-properties (seq-filter #'stringp kill-ring))))
+(add-hook 'savehist-save-hook #'my/savehist-plain-kill-ring)
+
+;; Native code for elpa/ (cache in state/eln-cache/, see early.el), compiled
+;; once in the background after the first idle half-minute, instead of
+;; package by package as each one is first loaded. Files that already have
+;; current native code are skipped, so after the first run this is a scan.
+;; Not in bin/install: under Nix that runs during activation, inside a systemd
+;; unit that kills whatever it leaves running.
+(when (and (fboundp 'native-comp-available-p) (native-comp-available-p))
+  (setq native-comp-async-report-warnings-errors 'silent)
+  (add-hook 'emacs-startup-hook
+            (lambda ()
+              (run-with-idle-timer
+               30 nil (lambda () (native-compile-async package-user-dir 'recursively))))))
 
 ;; Built-in features that replace packages we do not need, all cheap. On after
 ;; init so the first frame is not waiting for them.

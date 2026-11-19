@@ -85,8 +85,15 @@ is narrowed.  ASYNC is refused: compilation here is synchronous."
             (let ((body (org-with-wide-buffer
                          (buffer-substring-no-properties (point-min) (point-max)))))
               (with-temp-file staged (insert body)))
-            (with-current-buffer (find-file-noselect staged)
-              (org-mode)
+            ;; Open the copy with no mode and no hooks, then turn on org once:
+            ;; find-file would run org-mode with every hook (rtl labels,
+            ;; org-modern, ...) and the explicit call would run them again,
+            ;; all for a buffer nobody sees.
+            (with-current-buffer (let ((auto-mode-alist nil) (magic-mode-alist nil)
+                                       (enable-local-variables nil))
+                                   (find-file-noselect staged))
+              (let ((org-mode-hook nil))
+                (org-mode))
               (my/org-footnotes-in-reference-order)
               (org-typst-export-as-typst async nil visible-only body-only ext-plist)))
           (with-current-buffer org-typst-export-buffer-name

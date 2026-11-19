@@ -9,7 +9,8 @@
     (scroll-conservatively . 101) (enable-recursive-minibuffers . t)
     (vc-follow-symlinks . nil) (create-lockfiles . nil) (make-backup-files . nil)
     (vc-handled-backends . (Git)) (read-process-output-max . 1048576)
-    (gc-cons-percentage . 0.1) (bidi-paragraph-direction . nil)
+    (gc-cons-percentage . 0.2) (gc-cons-threshold . 67108864)
+    (auto-revert-verbose . nil) (kill-ring-max . 60) (bidi-paragraph-direction . nil)
     (word-wrap . t) (indent-tabs-mode . nil) (package-directory-list . nil)
     ))
 

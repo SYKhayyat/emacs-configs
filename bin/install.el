@@ -14,7 +14,6 @@
                            ("melpa" . "https://melpa.org/packages/")))
   (load (expand-file-name "lisp/packages.el" root) nil t)
   (package-initialize)
-  (package-refresh-contents)
   (defvar failed nil)
   ;; Packages Emacs ships itself, and ships as a stub. `compat' is the one: Emacs
   ;; 30's compat.el provides the feature and only compat-function/compat-call,
@@ -27,6 +26,15 @@
   (defconst my/builtin-stubs '(compat))
   ;; Installed means "into elpa/", which is a `package-desc-dir' that is a
   ;; string; a builtin's is the symbol `builtin'.
+  (defun my/in-elpa-p (p)
+    (let ((desc (cadr (assq p package-alist))))
+      (and desc (stringp (package-desc-dir desc)))))
+  ;; Fetch the archive lists only when something has to be installed: with
+  ;; everything present, a run is offline and takes a second. Not "only when
+  ;; the cached list lacks the package": an old cached list can name tarballs
+  ;; the archive no longer has.
+  (when (seq-remove #'my/in-elpa-p my/packages)
+    (package-refresh-contents))
   ;;
   ;; Every install passes DONT-SELECT. `package-selected-packages' is Emacs's
   ;; own record of what a user asked for interactively and this file has
@@ -37,8 +45,8 @@
   ;; dies with `wrong-type-argument stringp #<symbol xterm-color at 685>' and
   ;; takes every later install in the batch with it.
   (dolist (p my/packages)
-    (let ((desc (cadr (assq p package-alist))))
-      (unless (and desc (stringp (package-desc-dir desc)))
+    (progn
+      (unless (my/in-elpa-p p)
         (condition-case err
             (package-install
              (if (memq p my/builtin-stubs)
@@ -48,10 +56,24 @@
              t)
           (error (push p failed)
                  (message "FAILED %s: %s" p (error-message-string err)))))))
+  ;; Delete what is in elpa/ but neither in `my/packages' nor needed by one:
+  ;; a package dropped from the list would otherwise stay installed, and stay
+  ;; activated by quickstart, forever. Skipped when an install failed, since
+  ;; the dependency walk would then miss that package's dependencies.
+  (unless failed
+    (let ((package-selected-packages my/packages))
+      (dolist (p (package--removable-packages))
+        (when (my/in-elpa-p p)
+          (message "Removing %s (no longer in lisp/packages.el)" p)
+          ;; FORCE: a removable package may still list another removable one
+          ;; as a dependent. NOSAVE: do not write `package-selected-packages'.
+          (package-delete (cadr (assq p package-alist)) t t)))))
   (package-quickstart-refresh)
-  ;; Record what is installed, so a clone can see which versions worked.
+  ;; A local record of what this machine has installed, for comparing when
+  ;; something breaks after an install. Not committed, and nothing installs
+  ;; from it: MELPA serves only its latest build, so versions are not pinned.
   (with-temp-file (expand-file-name "packages.lock" root)
-    (insert ";; Versions installed by bin/install. Informational.\n")
+    (insert ";; Versions bin/install left in elpa/ on this machine. A record, not a pin.\n")
     (dolist (e (sort (copy-sequence package-alist)
                      (lambda (a b) (string< (car a) (car b)))))
       (insert (format "%s %s\n" (car e)

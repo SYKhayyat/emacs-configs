@@ -1,5 +1,23 @@
 # Decisions
 
+## Principles
+
+Everything below is judged against these (they were section 0 of the old plan.md).
+
+1. **Include only what is needed.** Emacs can do anything; that does not mean it should do everything.
+2. **Look at what is built in** before reaching for a package, and before deciding something can't be done.
+3. **Never sacrifice speed or lightness for cosmetics.**
+4. **Emacs should move faster than any other editor**, and compete with any on speed, features and weight.
+5. **Built-in first.** A package goes in only when it clearly beats the built-in, and you can say in one sentence how (`project.el` over projectile, `eglot` over lsp-mode, `vundo` over undo-tree, `modus-themes` over doom-themes).
+6. **Lazy by default.** Startup loads settings, not features: `:hook`, `:commands`, `:bind`, autoloads.
+7. **Measure what you feel, not everything you can.** Profile when something feels slow.
+8. **Use it daily, or it isn't done.**
+9. **Trust what the community already knows.** Take the settled answer (vertico, GC during init, `so-long`); re-derive only what is specific here: Hebrew, footnote-heavy sefarim, Typst.
+10. **One owner per setting.** Each variable is set in exactly one place.
+11. **Never touch the user's text behind its owner's back.** No invisible characters, no silent reformatting; export works on a staged copy.
+
+## Choices
+
 - Startup: `(emacs-init-time)` 0.15-0.19 s when first measured; re-measured 2026-11-16 at ~0.27 s init and ~0.6-0.95 s until the daemon socket answers (old config: 6.1 s).
 - Profiles: hebrew = Hebrew notes (RTL, niqqud search, Hebrew font); notes = English Org/Markdown without that; ide = code.
 - Completion order: alphabetical, folders first, globally (no history ranking in M-x).
@@ -21,3 +39,6 @@
 - eglot: decline server file-watch requests (pyright hit the 10000-watch limit and looped reconnects). Added dired-jump/wdired, C-c c compile, M-n/M-p diagnostics. Hebrew: C-c d/B/h q/h p/h c/h n kept (new note is Org only). Completion-preview skipped (corfu on TAB).
 - F7 = embark-bindings: searchable cheatsheet from the live keymaps, includes built-in and mode keys. Hebrew helper keys (C-c d/B/h *) NOT wanted; only C-c r / C-c l kept.
 - exec-path-from-shell: installed, used on macOS only. Skipped: Org auto-fill (soft wrap), built-in tree-sitter modes.
+- GC: 64 MB threshold, 0.2 percentage, plus a collection after 4 s idle, so pauses land when nothing is typed. Native code: one shared `state/eln-cache/`, compiled asynchronously in the daemon 30 s after startup, not in the install.
+- packages.lock is a local record of what was installed, not a pin: package.el cannot install an old version, so committing it promised what it could not do. The install refreshes archives only when a listed package is missing, and prunes what the list dropped unless an install failed.
+- Footnote labels (hebrew) are built when a buffer is shown, not only after the first command; rebuilt only when an edit can change them.

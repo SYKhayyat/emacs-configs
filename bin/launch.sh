@@ -36,7 +36,15 @@ command -v emacsclient >/dev/null 2>&1 || {
 # one of them answering for another.
 server="emacs-$profile"
 
-if emacsclient -s "$server" --eval t >/dev/null 2>&1; then
+# A daemon that is already running may have loaded an older config: after an
+# update, or one started from another tree. Each Emacs records the true path of
+# the lisp/ it loaded (my/config-stamp, early.el); compare it with this tree's.
+# Warn, never kill: a restart is the user's call, it can lose unsaved buffers.
+if live=$(emacsclient -s "$server" --eval '(bound-and-true-p my/config-stamp)' 2>/dev/null); then
+  stamp=$(cd "$root/lisp" && pwd -P)
+  [ "$live" = "\"$stamp\"" ] ||
+    echo "$server is running an older config ($live, current \"$stamp\");" \
+         "restart it: M-x save-buffers-kill-emacs, then launch again" >&2
   exec emacsclient -s "$server" -c "$@"
 fi
 

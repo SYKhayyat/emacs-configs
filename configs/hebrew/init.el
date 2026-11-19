@@ -1,3 +1,2 @@
-;;; init.el --- hebrew profile: a list of shared modules -*- lexical-binding: t; -*-
-(my/load-modules
- '(core files bidi ui completion editing navigation terminal prose writing footnotes rtl search-hebrew export ai))
+;;; init.el --- hebrew profile: its module list is in lisp/profiles.el -*- lexical-binding: t; -*-
+(my/load-profile)

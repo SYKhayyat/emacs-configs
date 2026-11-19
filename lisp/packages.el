@@ -1,6 +1,7 @@
 ;;; packages.el --- the one list of packages the config owns -*- lexical-binding: t; -*-
-;; `bin/install' installs whatever is missing from here into elpa/ and records
-;; the installed versions in packages.lock. This file is read only by the
+;; `bin/install' installs whatever is missing from here into elpa/, deletes
+;; what is no longer here, and records the installed versions in packages.lock
+;; (git-ignored, a local record: MELPA builds are not pinned). This file is read only by the
 ;; installer; at run time quickstart activates the autoloads and use-package
 ;; (no :ensure) configures them lazily.
 ;;

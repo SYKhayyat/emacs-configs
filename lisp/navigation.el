@@ -2,7 +2,12 @@
 
 (setq tab-bar-show 1
       tab-bar-new-tab-choice "*scratch*"
-      dired-listing-switches "-al --group-directories-first"
+      ;; --group-directories-first is GNU ls only (not BSD ls, not Windows,
+      ;; where dired uses ls-lisp).
+      dired-listing-switches (if (and (not (eq system-type 'windows-nt))
+                                      (executable-find "ls"))
+                                 "-al --group-directories-first" "-al")
+      ls-lisp-dirs-first t
       dired-dwim-target t)
 
 (keymap-global-set "C-<tab>" #'tab-bar-switch-to-next-tab)

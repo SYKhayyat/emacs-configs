@@ -11,6 +11,9 @@
 (defconst my/pretty-max-size (* 200 1024)
   "Buffers larger than this skip the table/org-look packages.")
 
+;; org-modern's unfontify removes *every* `display' text property, where org's
+;; own removes only org's. The rtl.el footnote labels are overlays, so they are
+;; safe; do not move them (or anything else) to `display' text properties.
 (defun my/org-pretty ()
   (when (< (buffer-size) my/pretty-max-size)
     (org-modern-mode 1)))

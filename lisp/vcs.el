@@ -7,10 +7,8 @@
 (use-package git-timemachine :bind ("C-c v t" . git-timemachine))
 
 ;; Projects: built-in project.el on C-x p. Folders with a "Bavli" file count as roots
-;; even without git; every git repo under ~/Documents is remembered at startup.
+;; even without git. A project is remembered the first time you visit a file in
+;; it (project.el's default); nothing scans ~/Documents.
 (use-package project
   :custom
-  (project-vc-extra-root-markers '("Bavli" ".project"))
-  :config
-  (when (file-directory-p "~/Documents/")
-    (project-remember-projects-under "~/Documents/")))
+  (project-vc-extra-root-markers '("Bavli" ".project")))
