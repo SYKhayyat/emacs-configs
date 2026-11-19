@@ -4,7 +4,8 @@
 - Profiles: hebrew = Hebrew notes (RTL, niqqud search, Hebrew font); notes = English Org/Markdown without that; ide = code.
 - Completion order: alphabetical, folders first, globally (no history ranking in M-x).
 - Mostly lazy (`:commands`, `:bind`, `:hook`; vertico, marginalia load at start on purpose) ; packages own `elpa/`, quickstart on.
-- bidi-paragraph-direction stays nil: forcing it costs 10-50x on wrapped Hebrew. Footnote RTL is a buffer-local display overlay.
+- Compat is the real GNU ELPA package, required in core.el before completion loads. corfu, vertico and consult declare `(compat "31")`; the compat.el Emacs 30 ships is a stub that provides the feature and nothing else, so `set-local`, `incf`, `decf` and `completion-list-candidate-at-point` were void — and because `vertico--setup` calls `set-local`, every minibuffer command (C-x C-f, C-x b, M-x) died with "Symbol's function definition is void: set-local". A package can be installed and still be missing from `load-path` at the moment it matters: this was fixed by requiring it early, not by installing it.
+- `bidi-paragraph-direction` stays nil: forcing it costs 10-50x on wrapped Hebrew. A buffer can still be pinned on request: `C-c r` / `C-c l` (every profile, not just hebrew), and pressing the pinned one again restores automatic, so a wrong automatic answer is recoverable from either direction. No cycle key: `C-c R` is `my/revert-buffer`, and one accidental shift is enough. While pinned the mode line says `RTL`/`LTR`; the label is a minor-mode lighter, so a buffer left automatic pays nothing per command. Footnote RTL is a buffer-local display overlay.
 - `org-footnote-auto-adjust` nil (863 ms/insert); org's footnote font-lock keyword stripped. Font-lock stays on.
 - org settings use `setq` in `:init`, not `:custom`: customize-set-variable loads org at startup.
 - org-modern only for buffers under 200 KB. Dropped valign: tables are rare, and Org cells cannot be multiline anyway.
@@ -16,7 +17,7 @@
 - Undecided: eglot-java; whether query-replace needs an anzu-like count.
 - Terminal: eat (pure Lisp, no compile) in every profile, bottom panel on `` C-` ``; login shell, `C-c t N` also offers Nushell and Bash. Rejected vterm (native build on NixOS) and vodik/cooked (Rust module built on first run, not on any package archive, young).
 - Modules are not byte-compiled: startup is ~0.27 s, and compiling without Org loaded breaks Org macros (`org-with-wide-buffer`). custom.el loads last, as the one deliberate override layer.
-- recentf excludes elpa/, state/, /tmp and export temp files; history-length 500 and kill-ring saved (no measurable startup cost). C-c r / C-c l force RTL / LTR per buffer (hebrew). Line numbers in prog-mode (ide). Tab bar shows only with 2+ tabs.
+- recentf excludes elpa/, state/, /tmp and export temp files; history-length 500 and kill-ring saved (no measurable startup cost). C-c r / C-c l pin RTL / LTR per buffer in every profile; the same key again restores automatic. Line numbers in prog-mode (ide). Tab bar shows only with 2+ tabs.
 - eglot: decline server file-watch requests (pyright hit the 10000-watch limit and looped reconnects). Added dired-jump/wdired, C-c c compile, M-n/M-p diagnostics. Hebrew: C-c d/B/h q/h p/h c/h n kept (new note is Org only). Completion-preview skipped (corfu on TAB).
 - F7 = embark-bindings: searchable cheatsheet from the live keymaps, includes built-in and mode keys. Hebrew helper keys (C-c d/B/h *) NOT wanted; only C-c r / C-c l kept.
 - exec-path-from-shell: installed, used on macOS only. Skipped: Org auto-fill (soft wrap), built-in tree-sitter modes.

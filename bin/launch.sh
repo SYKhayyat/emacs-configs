@@ -13,7 +13,10 @@
 #
 # usage: bin/launch.sh <profile> [file ...]
 set -eu
-root=$(cd "$(dirname "$0")/.." && pwd)
+# The tree to run from. Default: this checkout, which is what a clone on any
+# machine has. Nix sets EMACS_CONFIG_ROOT to a writable runtime tree instead,
+# because a store copy of this repo cannot hold elpa/ or state/.
+root=${EMACS_CONFIG_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}
 profile=${1:?usage: launch.sh <profile> [file ...]}
 shift || true
 

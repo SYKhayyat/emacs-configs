@@ -2,6 +2,23 @@
 ;; Settings only. Paths of files Emacs writes are in files.el.
 (defvar my/state-dir)
 
+;; The real Compat, before anything that needs it. corfu, vertico and consult
+;; now declare `(compat "31")' and call `set-local', `incf', `decf' and
+;; `completion-list-candidate-at-point'; this Emacs is 30.2, and the compat.el
+;; it ships is a stub that provides the feature and nothing else — so those
+;; names were void at run time and every byte-compile warned about each one.
+;; It is not enough to have the package installed: it has to be loaded before
+;; `vertico--setup' runs (any minibuffer: C-x C-f, C-x b, M-x), which is why
+;; this is here and not in the module that uses completion.
+;;
+;; `load' by name, not `require': once the stub has provided the feature — and
+;; anything that loads an autoload file can do that — `require' returns it and
+;; the real package never loads. `elpa/' is ahead of lisp/emacs-lisp/ on
+;; `load-path' after package activation, so this finds the GNU ELPA copy.
+(let ((compat (locate-library "compat")))
+  (unless compat (error "Compat is not installed: run bin/install"))
+  (load compat nil 'nomessage))
+
 (defun my/restore-after-init ()
   "Undo the temporary GC and file-handler settings from early.el."
   (setq gc-cons-threshold (* 16 1024 1024)

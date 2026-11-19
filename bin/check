@@ -2,7 +2,9 @@
 # Run the invariants and export tests against each profile (batch).
 # Fails if any run fails: the exit status is Emacs's, not grep's.
 set -uo pipefail
-root=$(cd "$(dirname "$0")/.." && pwd); cd "$root"
+# EMACS_CONFIG_ROOT selects the tree, as in launch.sh, so the tests can run
+# against the tree Nix built rather than the checkout.
+root=${EMACS_CONFIG_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}; cd "$root"
 fail=0
 run() { # profile test
   local out
@@ -18,6 +20,7 @@ for p in hebrew notes; do
   for t in export-footnote-placement export-narrowed; do run $p $t; done
 done
 for p in hebrew; do run $p search-hebrew; done
+for p in hebrew notes; do run $p bidi; done
 for p in hebrew notes ide; do run $p terminal; done
 for p in hebrew notes ide; do run $p orderless-toggle; done
 exit $fail

@@ -1,4 +1,8 @@
 ;;; rtl.el --- right-to-left behaviour: movement keys and footnote labels -*- lexical-binding: t; -*-
+;; The direction commands themselves (`C-c r', `C-c l') are in bidi.el, which
+;; every profile loads: a buffer whose direction is wrong is not a Hebrew-only
+;; problem. What is Hebrew-only is how the cursor moves and how footnote labels
+;; are laid out.
 
 ;; C-f / C-b follow the screen, not the logical order: in RTL text, C-f would
 ;; step left. right-char/left-char are the same moves in LTR text.
@@ -43,11 +47,3 @@ direction, so the paragraph starts at the Hebrew after the label."
 ;; Buffer-local: only org buffers pay for it.
 (add-hook 'org-mode-hook
           (lambda () (add-hook 'post-command-hook #'my/rtl-footnote-labels-follow nil t)))
-
-;; Force a buffer's paragraph direction (per buffer, on demand; never automatic).
-(defun my/set-rtl () "Lay this buffer out right-to-left." (interactive)
-  (setq-local bidi-paragraph-direction 'right-to-left))
-(defun my/set-ltr () "Lay this buffer out left-to-right." (interactive)
-  (setq-local bidi-paragraph-direction 'left-to-right))
-(keymap-global-set "C-c r" #'my/set-rtl)
-(keymap-global-set "C-c l" #'my/set-ltr)
